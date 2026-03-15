@@ -1,4 +1,4 @@
-# Roo Code for JetBrains
+# Roo Code for JetBrains (社区增强版)
 
 [English](README.md) | 简体中文
 
@@ -6,9 +6,16 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
 [![JetBrains](https://img.shields.io/badge/JetBrains-IntelliJ%20Platform-orange.svg)](https://www.jetbrains.com/)
 
-> **在其他 IDE 平台中运行基于 VSCode 的编码代理**
+> **将 Roo Code (Cline) 的强大能力带入 JetBrains IDE。这是一个社区驱动的项目，旨在解决 Roo Code 官方在 JetBrains 平台上缺乏稳定插件支持的问题。**
 
-Roo Code for JetBrains 是一个创新的跨平台开发工具，使开发者能够在 JetBrains IDEs（IntelliJ IDEA、WebStorm、PyCharm 等）或其他 IDE 平台中运行基于 VSCode 的编码代理和扩展。
+Roo Code for JetBrains (社区增强版) 让您能够在 JetBrains 生态系统（IntelliJ IDEA, PyCharm, WebStorm 等）中使用完整的 [Roo Code](https://roocode.com) AI 助手。本项目通过深度优化的底层引擎，解决了 Roo Code 无法在 JetBrains 平台上原生运行的痛点。
+
+### 💡 为什么选择这个版本？
+虽然官方提供了一个品牌化的版本，但它仅仅是 RunVSAgent 的简单换壳，保留了大量未修复的底层 Bug。本社区版 (**abcxlab**) 进行了深度重构和优化，致力于提供一个真正可用于生产环境的体验：
+
+*   **真正可用**：修复了官方版中常见的 JCEF 初始化时序错误、编辑器并发死锁以及 UI 冻结等核心问题。
+*   **功能对齐**：集成了检查点 (Checkpoints)、问题选择器 (Problem Selectors) 以及完整的快捷键和国际化支持，确保体验不输 VSCode 原版。
+*   **全面适配**：针对 PyCharm 等特定 IDE 进行了深度优化，确保在整个 JetBrains 系列中都能稳定运行。
 
 ## 📸 截图
 

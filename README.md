@@ -1,4 +1,4 @@
-# Roo Code for JetBrains
+# Roo Code for JetBrains (Community Edition)
 
 English | [简体中文](README_zh.md)
 
@@ -6,9 +6,16 @@ English | [简体中文](README_zh.md)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
 [![JetBrains](https://img.shields.io/badge/JetBrains-IntelliJ%20Platform-orange.svg)](https://www.jetbrains.com/)
 
-> **Run VSCode-based Coding Agents in Other IDE platforms**
+> **Bring the power of Roo Code (Cline) to JetBrains IDEs. A community-driven effort to provide a stable, feature-rich experience where official support is missing.**
 
-Roo Code for JetBrains is an innovative cross-platform development tool that enables developers to run VSCode-based coding agents and extensions within JetBrains IDEs (IntelliJ IDEA, WebStorm, PyCharm, etc.) or other IDE platforms. 
+Roo Code for JetBrains (Community Edition) allows you to run the full [Roo Code](https://roocode.com) AI assistant within the JetBrains ecosystem. It solves the problem of Roo Code lacking an official, stable plugin for JetBrains IDEs by providing a deeply optimized environment to run the VSCode-based agent.
+
+### 💡 Why this version?
+While an official branding fork exists, it inherits many unresolved issues from the original RunVSAgent project, making it difficult to use in daily production. This community edition (**abcxlab**) is dedicated to fixing those gaps:
+
+*   **Truly Usable**: Fixed critical JCEF timing bugs, editor concurrency deadlocks, and UI freezes that often plague the official version.
+*   **Feature Parity**: Integrated support for Checkpoints, Problem Selectors, and full Keymap/i18n—ensuring the JetBrains experience matches the VSCode original.
+*   **Production Ready**: Optimized for professional use across all JetBrains IDEs, including first-class support for PyCharm.
 
 ## 📸 Screenshot
 
