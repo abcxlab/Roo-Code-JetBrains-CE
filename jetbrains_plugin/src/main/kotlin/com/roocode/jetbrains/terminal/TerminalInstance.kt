@@ -22,9 +22,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import com.roocode.jetbrains.util.TerminalCharsetDetector
 import org.jetbrains.plugins.terminal.LocalTerminalDirectRunner
 import org.jetbrains.plugins.terminal.ShellStartupOptions
 import org.jetbrains.plugins.terminal.ShellTerminalWidget
+import java.nio.charset.Charset
 
 /**
  * Terminal instance class
@@ -70,6 +72,9 @@ class TerminalInstance(
 
     // Shell integration manager
     private val terminalShellIntegration = TerminalShellIntegration(extHostTerminalId, numericId, rpcProtocol)
+
+    // Terminal charset
+    private val charset: Charset = TerminalCharsetDetector.detect(project)
 
     // Event callback manager
     private val callbackManager = TerminalCallbackManager()
@@ -153,6 +158,13 @@ class TerminalInstance(
         
         notifyTerminalOpened()
         notifyShellIntegrationChange()
+
+        // 🎯 Platform-specific enhancement: Force UTF-8 on Windows to avoid encoding conflicts
+        if (com.intellij.openapi.util.SystemInfo.isWindows) {
+            logger.debug("🔧 Windows detected, injecting 'chcp 65001' to force UTF-8 output")
+            sendText("chcp 65001", shouldExecute = true)
+        }
+
         handleInitialText()
     }
 
@@ -204,7 +216,7 @@ class TerminalInstance(
                 logger.debug("Startup options: $options")
 
                 val originalProcess = super.createProcess(options)
-                logger.debug("✅ Original Process created: ${originalProcess.javaClass.name}")
+                logger.debug("✅ Original Process created: ${originalProcess.javaClass.name} (Charset: $charset)")
 
                 return createProxyPtyProcess(originalProcess)
             }
@@ -282,10 +294,10 @@ class TerminalInstance(
      * Create proxy PtyProcess to intercept input/output streams
      */
     private fun createProxyPtyProcess(originalProcess: PtyProcess): PtyProcess {
-        logger.debug("🔧 Creating proxy PtyProcess to intercept input/output streams...")
+        logger.debug("🔧 Creating proxy PtyProcess to intercept input/output streams (Charset: $charset)...")
 
         val rawDataCallback = createRawDataCallback()
-        return ProxyPtyProcess(originalProcess, rawDataCallback)
+        return ProxyPtyProcess(originalProcess, charset, rawDataCallback)
     }
 
     /**

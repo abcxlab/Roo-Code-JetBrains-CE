@@ -7,23 +7,39 @@ import java.security.MessageDigest
 
 
 tasks.register('genPlatform', Zip) {
-    download(project)
+    group = "build"
+    description = "Generates the platform.zip containing cross-platform node_modules"
+
+    // Ensure preparation runs before zipping
+    dependsOn('prepareGenPlatform')
+
     from(new File(project.buildDir, "genPlatform/gen"))
     into("")
     destinationDirectory = project.projectDir
     archiveFileName = "platform.zip"
+
+    doFirst {
+        // Delete existing platform.zip only when we are actually about to regenerate it
+        def zipFile = new File(project.projectDir, "platform.zip")
+        if (zipFile.exists()) {
+            println "Deleting existing platform.zip before regeneration..."
+            zipFile.delete()
+        }
+    }
 }
-def download(Project project){
 
+tasks.register('prepareGenPlatform') {
+    doLast {
+        downloadAndProcess(project)
+    }
+}
 
-
-
+def downloadAndProcess(project) {
     def version = project.findProperty("vscodeVersion")
     String windows_x64 = "https://update.code.visualstudio.com/${version}/win32-x64-archive/stable"
     String mac_x64 = "https://update.code.visualstudio.com/${version}/darwin/stable"
     String mac_arm64  = "https://update.code.visualstudio.com/${version}/darwin-arm64/stable"
     String linux_x64 = "https://update.code.visualstudio.com/${version}/linux-x64/stable"
-    // To support other platforms, need to synchronously modify the initPlatfromFiles method in WecoderPlugin
 
     def list = [] // node_module directories for multiple platforms
 
@@ -31,80 +47,76 @@ def download(Project project){
     def cacheRootDir = new File(project.projectDir, "cache")
     def vscodeCacheDir = new File(cacheRootDir, "vscode")
     def versionCacheDir = new File(vscodeCacheDir, version)
-    versionCacheDir.mkdirs() // Ensure the cache directory for this version exists
+    versionCacheDir.mkdirs()
     println "Using cache directory: ${versionCacheDir.absolutePath}"
 
-    def projectBuild = new File(project.buildDir,"genPlatform")
-    projectBuild.mkdirs();
+    def projectBuild = new File(project.buildDir, "genPlatform")
+    if (projectBuild.exists()) {
+        projectBuild.deleteDir()
+    }
+    projectBuild.mkdirs()
+
     println "Processing Windows platform files"
-    def windowsZipFile = new File(versionCacheDir,"windows-x64.zip")
+    def windowsZipFile = new File(versionCacheDir, "windows-x64.zip")
     if (!windowsZipFile.exists()) {
         println "Downloading ${windowsZipFile.name} to cache..."
         windowsZipFile << new URL(windows_x64).openStream()
-        println "Downloaded ${windowsZipFile.name} to cache."
     } else {
         println "Using cached ${windowsZipFile.name}"
     }
 
     def windowsDir = new File(projectBuild, "windows-x64")
-    copy {
-        from(zipTree(new File(versionCacheDir, "windows-x64.zip")))
+    project.copy {
+        from(zipTree(windowsZipFile))
         into(windowsDir)
     }
-    new File(windowsDir, "resources/app/node_modules").renameTo( new File(windowsDir, "resources/app/windows-x64"))
+    new File(windowsDir, "resources/app/node_modules").renameTo(new File(windowsDir, "resources/app/windows-x64"))
     list << new File(windowsDir, "resources/app/windows-x64")
 
     println "Processing Mac x64 platform files"
-    def macX64ZipFile = new File(versionCacheDir,"darwin-x64.zip")
+    def macX64ZipFile = new File(versionCacheDir, "darwin-x64.zip")
     if (!macX64ZipFile.exists()) {
         println "Downloading ${macX64ZipFile.name} to cache..."
         macX64ZipFile << new URL(mac_x64).openStream()
-        println "Downloaded ${macX64ZipFile.name} to cache."
     } else {
         println "Using cached ${macX64ZipFile.name}"
     }
 
     def macX64Dir = new File(projectBuild, "darwin-x64")
-    project.delete(macX64Dir)
-    macX64Dir.mkdirs()
     project.exec {
-        commandLine 'unzip', '-o', '-q', new File(versionCacheDir, "darwin-x64.zip").absolutePath, '-d', macX64Dir.absolutePath
+        commandLine 'unzip', '-o', '-q', macX64ZipFile.absolutePath, '-d', macX64Dir.absolutePath
     }
     new File(macX64Dir, "Visual Studio Code.app/Contents/Resources/app/node_modules").renameTo(new File(macX64Dir, "Visual Studio Code.app/Contents/Resources/app/darwin-x64"))
     list << new File(macX64Dir, "Visual Studio Code.app/Contents/Resources/app/darwin-x64")
 
     println "Processing Mac arm64 platform files"
-    def macArm64ZipFile = new File(versionCacheDir,"darwin-arm64.zip")
+    def macArm64ZipFile = new File(versionCacheDir, "darwin-arm64.zip")
     if (!macArm64ZipFile.exists()) {
         println "Downloading ${macArm64ZipFile.name} to cache..."
         macArm64ZipFile << new URL(mac_arm64).openStream()
-        println "Downloaded ${macArm64ZipFile.name} to cache."
     } else {
         println "Using cached ${macArm64ZipFile.name}"
     }
 
     def macArm64Dir = new File(projectBuild, "darwin-arm64")
-    project.delete(macArm64Dir)
-    macArm64Dir.mkdirs()
     project.exec {
-        commandLine 'unzip', '-o', '-q', new File(versionCacheDir, "darwin-arm64.zip").absolutePath, '-d', macArm64Dir.absolutePath
+        commandLine 'unzip', '-o', '-q', macArm64ZipFile.absolutePath, '-d', macArm64Dir.absolutePath
     }
     new File(macArm64Dir, "Visual Studio Code.app/Contents/Resources/app/node_modules").renameTo(new File(macArm64Dir, "Visual Studio Code.app/Contents/Resources/app/darwin-arm64"))
     list << new File(macArm64Dir, "Visual Studio Code.app/Contents/Resources/app/darwin-arm64")
 
     println "Processing Linux x64 platform files"
-    def linuxZipFile = new File(versionCacheDir,"linux-x64.zip")
+    def linuxZipFile = new File(versionCacheDir, "linux-x64.zip")
     if (!linuxZipFile.exists()) {
         println "Downloading ${linuxZipFile.name} to cache..."
         linuxZipFile << new URL(linux_x64).openStream()
-        println "Downloaded ${linuxZipFile.name} to cache."
     } else {
         println "Using cached ${linuxZipFile.name}"
     }
 
     def linuxDir = new File(projectBuild, "linux-x64")
-    copy {
-        from(tarTree(resources.gzip(versionCacheDir.toPath().resolve("linux-x64.zip"))))
+    project.copy {
+        from(tarTree(resources.gzip(linuxZipFile)))
         into(linuxDir)
     }
     new File(linuxDir, "VSCode-linux-x64/resources/app/node_modules").renameTo(new File(linuxDir, "VSCode-linux-x64/resources/app/linux-x64"))
@@ -112,14 +124,8 @@ def download(Project project){
 
     def targetDir = new File(projectBuild, "gen/node_modules")
     def txtFile = new File(projectBuild, "gen/platform.txt")
-    mergeDirectories(list, targetDir,txtFile)
-
-    def zipFile = new File(project.projectDir,"platform.zip")
-    if(zipFile.exists()) {
-        zipFile.delete()
-    }
+    mergeDirectories(list, targetDir, txtFile)
 }
-
 
 def mergeDirectories(List<File> dirs, File targetDir, File outputFile = null) {
     def outputContent = new StringBuilder()
@@ -127,21 +133,18 @@ def mergeDirectories(List<File> dirs, File targetDir, File outputFile = null) {
         targetDir.mkdirs()
     }
 
-    // Collect all file paths (relative paths), ignore .DS_Store
     def allFiles = []
     dirs.each { dir ->
         if (dir.exists()) {
             dir.eachFileRecurse { file ->
-                if (file.isFile() && file.name != ".DS_Store") {  // Ignore .DS_Store
+                if (file.isFile() && file.name != ".DS_Store") {
                     def relativePath = dir.toPath().relativize(file.toPath()).toString()
                     allFiles << [dir: dir, file: file, relativePath: relativePath]
                 }
-
             }
         }
     }
 
-    // Group by relative path
     def groupedFiles = allFiles.groupBy { it.relativePath }
 
     groupedFiles.each { relativePath, entries ->
@@ -149,10 +152,8 @@ def mergeDirectories(List<File> dirs, File targetDir, File outputFile = null) {
         targetFile.parentFile.mkdirs()
 
         if (entries.size() == 1) {
-            // Unique file, copy directly
             Files.copy(entries[0].file.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
         } else {
-            // Check if all file contents are the same
             def uniqueHashes = entries.collect { entry ->
                 def file = entry.file
                 def digest = MessageDigest.getInstance("SHA-256")
@@ -168,14 +169,10 @@ def mergeDirectories(List<File> dirs, File targetDir, File outputFile = null) {
             }.groupBy { it.hash }
 
             if (uniqueHashes.size() == 1) {
-                // Same content, keep one copy
                 Files.copy(entries[0].file.toPath(), targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
             } else {
-                // Different content, add directory name as suffix
                 if (outputFile) {
                     outputContent.append("$relativePath\n")
-                } else {
-                    println "$relativePath"
                 }
                 uniqueHashes.each { hash, files ->
                     def sourceFile = files[0].file

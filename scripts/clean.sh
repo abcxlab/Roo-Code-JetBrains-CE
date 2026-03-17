@@ -179,6 +179,44 @@ confirm_clean() {
     fi
 }
 
+# Smart submodule clean: try script first, fallback to manual removal
+clean_submodule_smart() {
+    local dir="$1"
+    local name="$2"
+    shift 2
+    local fallback_dirs=("$@")
+
+    [[ ! -d "$dir" ]] && return 0
+
+    log_info "Cleaning $name..."
+    local script_worked=false
+
+    # Try to use native clean script
+    if [[ -f "$dir/package.json" ]]; then
+        local pkg_manager="npm"
+        [[ -f "$dir/pnpm-lock.yaml" ]] && pkg_manager="pnpm"
+        
+        if command_exists "$pkg_manager"; then
+            if [[ "$DRY_RUN" != "true" ]]; then
+                # Use a subshell to run the script but capture its exit status in the parent
+                if (cd "$dir" && $pkg_manager run clean >/dev/null 2>&1); then
+                    script_worked=true
+                fi
+            else
+                log_debug "[Dry-run] Would run: $pkg_manager run clean in $dir"
+                script_worked=true
+            fi
+        fi
+    fi
+
+    # Fallback to manual removal if script failed or not available
+    if [[ "$script_worked" != "true" ]]; then
+        for d in "${fallback_dirs[@]}"; do
+            remove_dir "$dir/$d"
+        done
+    fi
+}
+
 # Clean build artifacts
 clean_build_artifacts() {
     if [[ "$CLEAN_TARGET" != "$TARGET_BUILD" && "$CLEAN_TARGET" != "$TARGET_ALL" ]]; then
@@ -187,40 +225,32 @@ clean_build_artifacts() {
     
     log_step "Cleaning build artifacts..."
     
-    # Clean VSCode extension build
-    local vscode_dir="$PROJECT_ROOT/$VSCODE_SUBMODULE_PATH"
-    if [[ -d "$vscode_dir" ]]; then
-        log_info "Cleaning VSCode extension build..."
-        remove_dir "$vscode_dir/bin"
-        remove_dir "$vscode_dir/src/dist"
-        remove_dir "$vscode_dir/src/webview-ui/build"
-        remove_dir "$vscode_dir/out"
-        
-        # Clean any .vsix files in root
-        find "$vscode_dir" -maxdepth 1 -name "*.vsix" -type f -exec rm -f {} \; 2>/dev/null || true
-    fi
+    # 1. Clean VSCode extension (Smart)
+    clean_submodule_smart "$PROJECT_ROOT/$VSCODE_SUBMODULE_PATH" "VSCode" \
+        "bin" "src/dist" "src/webview-ui/build" "out"
     
-    # Clean base extension build
-    local base_dir="$PROJECT_ROOT/$EXTENSION_HOST_DIR"
-    if [[ -d "$base_dir" ]]; then
-        log_info "Cleaning base extension build..."
-        remove_dir "$base_dir/dist"
-        remove_dir "$base_dir/out"
-    fi
+    # Clean any .vsix files in VSCode root (Dry-run safe)
+    execute_cmd "find \"$PROJECT_ROOT/$VSCODE_SUBMODULE_PATH\" -maxdepth 1 -name \"*.vsix\" -type f -delete" "Clean VSCode VSIX files" || true
     
-    # Clean IDEA plugin build
+    # 2. Clean Roo-Code extension (Smart)
+    clean_submodule_smart "$PROJECT_ROOT/$PLUGIN_SUBMODULE_PATH" "Roo-Code" \
+        "dist" "out" "bin" ".turbo"
+    
+    # 3. Clean base extension build (Smart)
+    clean_submodule_smart "$PROJECT_ROOT/$EXTENSION_HOST_DIR" "Base Extension" \
+        "dist" "out"
+    
+    # 4. Clean IDEA plugin build
     local idea_dir="$PROJECT_ROOT/$IDEA_DIR"
     if [[ -d "$idea_dir" ]]; then
         log_info "Cleaning IDEA plugin build..."
         remove_dir "$idea_dir/build"
         remove_dir "$idea_dir/roo-code"
-        [[ -f "$idea_dir/prodDep.txt" ]] && rm -f "$idea_dir/prodDep.txt"
+        [[ -f "$idea_dir/prodDep.txt" ]] && execute_cmd "rm -f \"$idea_dir/prodDep.txt\"" "Remove prodDep.txt"
     fi
     
-    # Clean debug resources
+    # 5. Clean root build artifacts
     remove_dir "$PROJECT_ROOT/debug-resources"
-    
-    # Clean any build directories in project root
     remove_dir "$PROJECT_ROOT/build"
     remove_dir "$PROJECT_ROOT/dist"
     
@@ -264,12 +294,8 @@ clean_dependencies() {
     # Clean global Gradle cache (user's home directory)
     if [[ -d "$HOME/.gradle/caches" ]]; then
         log_info "Cleaning global Gradle cache..."
-        if [[ "$DRY_RUN" == "true" ]]; then
-            log_debug "Would clean: $HOME/.gradle/caches"
-        else
-            find "$HOME/.gradle/caches" -type f -name "*.lock" -delete 2>/dev/null || true
-            find "$HOME/.gradle/caches" -type d -name "tmp" -exec rm -rf {} + 2>/dev/null || true
-        fi
+        execute_cmd "find \"$HOME/.gradle/caches\" -type f -name \"*.lock\" -delete" "Clean Gradle lock files" || true
+        execute_cmd "find \"$HOME/.gradle/caches\" -type d -name \"tmp\" -exec rm -rf {} +" "Clean Gradle temp directories" || true
     fi
     
     log_success "Dependencies cleaned"
@@ -305,7 +331,7 @@ clean_cache() {
     
     # Clean system temp directories
     log_info "Cleaning temporary build files..."
-    find /tmp -name "${TEMP_PREFIX}*" -type d -exec rm -rf {} + 2>/dev/null || true
+    execute_cmd "find /tmp -name \"${TEMP_PREFIX}*\" -type d -exec rm -rf {} +" "Clean system temp directories" || true
     
     # Clean project temp directory
     remove_dir "$PROJECT_ROOT/tmp"
@@ -345,18 +371,18 @@ clean_logs() {
     # Clean project log directory
     if [[ -d "$PROJECT_ROOT/logs" ]]; then
         log_info "Cleaning project logs..."
-        find "$PROJECT_ROOT/logs" -name "*.log" -type f -exec rm -f {} \; 2>/dev/null || true
-        find "$PROJECT_ROOT/logs" -name "*.log.*" -type f -exec rm -f {} \; 2>/dev/null || true
+        execute_cmd "find \"$PROJECT_ROOT/logs\" -name \"*.log\" -type f -delete" "Clean log files" || true
+        execute_cmd "find \"$PROJECT_ROOT/logs\" -name \"*.log.*\" -type f -delete" "Clean rotated log files" || true
     fi
     
     # Clean npm debug logs
-    find "$PROJECT_ROOT" -name "npm-debug.log*" -type f -exec rm -f {} \; 2>/dev/null || true
-    find "$PROJECT_ROOT" -name ".npm/_logs" -type d -exec rm -rf {} \; 2>/dev/null || true
+    execute_cmd "find \"$PROJECT_ROOT\" -name \"npm-debug.log*\" -type f -delete" "Clean npm debug logs" || true
+    execute_cmd "find \"$PROJECT_ROOT\" -name \".npm/_logs\" -type d -exec rm -rf {} +" "Clean npm log directories" || true
     
     # Clean Gradle logs
     local idea_dir="$PROJECT_ROOT/$IDEA_DIR"
     if [[ -d "$idea_dir" ]]; then
-        find "$idea_dir" -name "*.log" -type f -exec rm -f {} \; 2>/dev/null || true
+        execute_cmd "find \"$idea_dir\" -name \"*.log\" -type f -delete" "Clean IDEA logs" || true
     fi
     
     log_success "Log files cleaned"
@@ -371,18 +397,18 @@ clean_temp() {
     log_step "Cleaning temporary files..."
     
     # Clean project temporary files
-    find "$PROJECT_ROOT" -name ".DS_Store" -type f -exec rm -f {} \; 2>/dev/null || true
-    find "$PROJECT_ROOT" -name "Thumbs.db" -type f -exec rm -f {} \; 2>/dev/null || true
-    find "$PROJECT_ROOT" -name "*.tmp" -type f -exec rm -f {} \; 2>/dev/null || true
-    find "$PROJECT_ROOT" -name "*.temp" -type f -exec rm -f {} \; 2>/dev/null || true
+    execute_cmd "find \"$PROJECT_ROOT\" -name \".DS_Store\" -type f -delete" "Clean .DS_Store files" || true
+    execute_cmd "find \"$PROJECT_ROOT\" -name \"Thumbs.db\" -type f -delete" "Clean Thumbs.db files" || true
+    execute_cmd "find \"$PROJECT_ROOT\" -name \"*.tmp\" -type f -delete" "Clean .tmp files" || true
+    execute_cmd "find \"$PROJECT_ROOT\" -name \"*.temp\" -type f -delete" "Clean .temp files" || true
     
     # Clean editor temporary files
-    find "$PROJECT_ROOT" -name "*~" -type f -exec rm -f {} \; 2>/dev/null || true
-    find "$PROJECT_ROOT" -name "*.swp" -type f -exec rm -f {} \; 2>/dev/null || true
-    find "$PROJECT_ROOT" -name "*.swo" -type f -exec rm -f {} \; 2>/dev/null || true
+    execute_cmd "find \"$PROJECT_ROOT\" -name \"*~\" -type f -delete" "Clean backup files" || true
+    execute_cmd "find \"$PROJECT_ROOT\" -name \"*.swp\" -type f -delete" "Clean swap files" || true
+    execute_cmd "find \"$PROJECT_ROOT\" -name \"*.swo\" -type f -delete" "Clean swap files" || true
     
     # Clean system temporary directories
-    find /tmp -name "${TEMP_PREFIX}*" -type d -exec rm -rf {} + 2>/dev/null || true
+    execute_cmd "find /tmp -name \"${TEMP_PREFIX}*\" -type d -exec rm -rf {} +" "Clean system temp directories" || true
     
     log_success "Temporary files cleaned"
 }

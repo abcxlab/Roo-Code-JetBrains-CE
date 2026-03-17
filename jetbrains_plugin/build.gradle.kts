@@ -73,33 +73,39 @@ fun Sync.prepareSandbox() {
             File(vscodePluginDir, ".env").createNewFile()
         }
     } else {
-        val vscodePluginDir = File("./plugins/${ext.get("vscodePlugin")}")
-        if (!vscodePluginDir.exists()) {
-            throw IllegalStateException("missing plugin dir")
-        }
-        val list = mutableListOf<String>()
-        val depfile = File("prodDep.txt")
-        if (!depfile.exists()) {
-            throw IllegalStateException("missing prodDep.txt")
-        }
-        depfile.readLines().let {
-            it.forEach { line ->
-                list.add(line.substringAfterLast("node_modules/") + "/**")
+        val vscodePluginName = ext.get("vscodePlugin")
+        val vscodePluginDir = File(projectDir, "plugins/$vscodePluginName")
+        val depfile = File(projectDir, "prodDep.txt")
+
+        // Move strict validation to execution phase
+        doFirst {
+            if (!vscodePluginDir.exists()) {
+                throw IllegalStateException("missing plugin dir: ${vscodePluginDir.absolutePath}. Please run 'runGlobalSetup' task.")
+            }
+            if (!depfile.exists()) {
+                throw IllegalStateException("missing prodDep.txt: ${depfile.absolutePath}")
             }
         }
 
         from("../extension_host/dist") { into("${intellij.pluginName.get()}/runtime/") }
         from("../extension_host/package.json") { into("${intellij.pluginName.get()}/runtime/") }
 
-        // First copy extension_host node_modules
-        from("../extension_host/node_modules") {
-            into("${intellij.pluginName.get()}/node_modules/")
-            list.forEach {
-                include(it)
+        // Configure node_modules copy if depfile exists during configuration.
+        // If it's missing, it will be created by runGlobalSetup before execution.
+        if (depfile.exists()) {
+            val list = mutableListOf<String>()
+            depfile.readLines().forEach { line ->
+                list.add(line.substringAfterLast("node_modules/") + "/**")
+            }
+            from("../extension_host/node_modules") {
+                into("${intellij.pluginName.get()}/node_modules/")
+                list.forEach {
+                    include(it)
+                }
             }
         }
 
-        from("${vscodePluginDir.path}/extension") { into("${intellij.pluginName.get()}/${ext.get("vscodePlugin")}") }
+        from(File(vscodePluginDir, "extension")) { into("${intellij.pluginName.get()}/$vscodePluginName") }
         from("src/main/resources/themes/") { into("${intellij.pluginName.get()}/${ext.get("vscodePlugin")}/integrations/theme/default-themes/") }
 
         // The platform.zip file required for release mode is associated with the code in ../base/vscode, currently using version 1.100.0. If upgrading this code later
@@ -184,7 +190,21 @@ tasks {
         }
     }
 
+    // Bridge task to run the global setup script
+    val runGlobalSetup = register<Exec>("runGlobalSetup") {
+        group = "setup"
+        description = "Runs the global setup script to initialize submodules and dependencies"
+        onlyIf {
+            val vscodePluginName = ext.get("vscodePlugin")
+            val vscodePluginDir = File(projectDir, "plugins/$vscodePluginName")
+            !vscodePluginDir.exists() || !File(projectDir, "prodDep.txt").exists()
+        }
+        workingDir("..")
+        commandLine("./scripts/setup.sh")
+    }
+
     prepareSandbox {
+        dependsOn(runGlobalSetup)
         from("../extension_host/dist") { into("${intellij.pluginName.get()}/runtime/") }
         from("../extension_host/package.json") { into("${intellij.pluginName.get()}/runtime/") }
         prepareSandbox()

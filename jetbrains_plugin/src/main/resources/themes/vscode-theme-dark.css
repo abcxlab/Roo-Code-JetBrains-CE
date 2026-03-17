@@ -1,8 +1,8 @@
 --text-link-decoration: none;
---vscode-font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+--vscode-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "STHeiti", "Meiryo", "Malgun Gothic", "WenQuanYi Micro Hei", sans-serif;
 --vscode-font-weight: normal;
 --vscode-font-size: 13px;
---vscode-editor-font-family: Menlo, Monaco, "Courier New", monospace;
+--vscode-editor-font-family: Menlo, Monaco, Consolas, "Courier New", "Microsoft YaHei Mono", "PingFang SC Mono", monospace;
 --vscode-editor-font-weight: normal;
 --vscode-editor-font-size: 16px;
 --vscode-foreground: #cccccc;

@@ -7,6 +7,10 @@ package com.roocode.jetbrains.terminal
 import com.pty4j.PtyProcess
 import com.intellij.openapi.diagnostic.Logger
 import com.pty4j.WinSize
+import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.charset.Charset
+import java.nio.charset.CodingErrorAction
 
 /**
  * ProxyPtyProcess callback interface
@@ -27,6 +31,7 @@ interface ProxyPtyProcessCallback {
  */
 class ProxyPtyProcess(
     private val originalProcess: PtyProcess,
+    private val charset: Charset,
     private val callback: ProxyPtyProcessCallback? = null
 ) : PtyProcess() {
 
@@ -34,6 +39,7 @@ class ProxyPtyProcess(
     private val proxyInputStream: ProxyInputStream = ProxyInputStream(
         originalProcess.inputStream,
         "STDOUT",
+        charset,
         callback
     )
 
@@ -41,6 +47,7 @@ class ProxyPtyProcess(
     private val proxyErrorStream: ProxyInputStream = ProxyInputStream(
         originalProcess.errorStream,
         "STDERR",
+        charset,
         callback
     )
 
@@ -72,20 +79,30 @@ class ProxyPtyProcess(
 
 /**
  * Proxy InputStream implementation
- * Intercepts read operations and provides raw data callback
+ * Intercepts read operations and provides raw data callback with stateful decoding
  */
 class ProxyInputStream(
     private val originalStream: java.io.InputStream,
     private val streamType: String,
+    private val charset: Charset,
     private val callback: ProxyPtyProcessCallback?
 ) : java.io.InputStream() {
-    
+
+    private val logger = Logger.getInstance(ProxyInputStream::class.java)
+
+    // Stateful decoder to handle multi-byte characters split across reads
+    private val decoder = charset.newDecoder()
+        .onMalformedInput(CodingErrorAction.REPLACE)
+        .onUnmappableCharacter(CodingErrorAction.REPLACE)
+
+    // Buffers for decoding
+    private val byteBuffer = ByteBuffer.allocate(16384) // 16KB buffer
+    private val charBuffer = CharBuffer.allocate(16384)
+
     override fun read(): Int {
         val result = originalStream.read()
         if (result != -1 && callback != null) {
-            // Convert single byte to string and callback
-            val dataString = String(byteArrayOf(result.toByte()), Charsets.UTF_8)
-            callback.onRawData(dataString, streamType)
+            processBytes(byteArrayOf(result.toByte()), 0, 1)
         }
         return result
     }
@@ -93,9 +110,7 @@ class ProxyInputStream(
     override fun read(b: ByteArray): Int {
         val result = originalStream.read(b)
         if (result > 0 && callback != null) {
-            // Convert to string and callback
-            val dataString = String(b, 0, result, Charsets.UTF_8)
-            callback.onRawData(dataString, streamType)
+            processBytes(b, 0, result)
         }
         return result
     }
@@ -103,17 +118,67 @@ class ProxyInputStream(
     override fun read(b: ByteArray, off: Int, len: Int): Int {
         val result = originalStream.read(b, off, len)
         if (result > 0 && callback != null) {
-            // Convert to string and callback
-            val dataString = String(b, off, result, Charsets.UTF_8)
-            callback.onRawData(dataString, streamType)
+            processBytes(b, off, result)
         }
         return result
+    }
+
+    /**
+     * Process bytes using stateful decoder to handle multi-byte character boundaries
+     */
+    private fun processBytes(b: ByteArray, off: Int, len: Int) {
+        try {
+            var currentOff = off
+            val end = off + len
+
+            while (currentOff < end) {
+                val remainingInInput = end - currentOff
+                val spaceInByteBuf = byteBuffer.remaining()
+                
+                if (spaceInByteBuf == 0) {
+                    // This shouldn't happen with 16KB buffer unless we have a very long invalid sequence
+                    // but let's be safe and clear it if it's full
+                    byteBuffer.clear()
+                }
+
+                val toPut = minOf(remainingInInput, byteBuffer.remaining())
+                byteBuffer.put(b, currentOff, toPut)
+                currentOff += toPut
+
+                byteBuffer.flip()
+                
+                // Decode bytes to chars. false means we expect more data.
+                val decodeResult = decoder.decode(byteBuffer, charBuffer, false)
+                
+                charBuffer.flip()
+                if (charBuffer.hasRemaining()) {
+                    callback?.onRawData(charBuffer.toString(), streamType)
+                }
+                
+                charBuffer.clear()
+                byteBuffer.compact() // Keep remaining bytes that couldn't be decoded yet
+            }
+        } catch (e: Exception) {
+            logger.error("Error decoding terminal output stream ($streamType) with charset $charset", e)
+            // Fallback: try to send as much as possible if decoding fails
+            try {
+                callback?.onRawData(String(b, off, len, charset), streamType)
+            } catch (inner: Exception) {
+                // Last resort
+            }
+        }
     }
     
     // Delegate other methods to the original stream
     override fun available(): Int = originalStream.available()
-    override fun close() = originalStream.close()
+    override fun close() {
+        decoder.reset()
+        originalStream.close()
+    }
     override fun mark(readlimit: Int) = originalStream.mark(readlimit)
-    override fun reset() = originalStream.reset()
+    override fun reset() {
+        decoder.reset()
+        originalStream.reset()
+    }
     override fun markSupported(): Boolean = originalStream.markSupported()
 }
