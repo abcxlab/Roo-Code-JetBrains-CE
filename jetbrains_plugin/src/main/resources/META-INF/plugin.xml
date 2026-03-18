@@ -284,6 +284,14 @@ https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
             <override-text place="GoToAction" text="Marketplace" />
         </action>
 
+        <!-- <action id="RooCode.cloudButtonClicked"
+            icon="AllIcons.General.User"
+            class="com.roocode.jetbrains.actions.CloudButtonClickAction"
+            text="Roo Cloud"
+            description="Roo Cloud settings and task synchronization">
+            <override-text place="GoToAction" text="Roo Cloud" />
+        </action> -->
+
         <action id="RooCode.settingsButtonClicked"
             icon="AllIcons.General.Settings"
             class="com.roocode.jetbrains.actions.SettingsButtonClickAction"
@@ -297,6 +305,7 @@ https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
             <!-- <reference ref="RooCode.promptsButtonClicked" /> -->
             <!-- <reference ref="RooCode.mcpButtonClicked" />-->
             <reference ref="RooCode.marketplaceButtonClicked" />
+            <reference ref="RooCode.cloudButtonClicked" />
             <reference ref="RooCode.historyButtonClicked" />
             <reference ref="RooCode.settingsButtonClicked" />
         </group>

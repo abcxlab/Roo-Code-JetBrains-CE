@@ -139,6 +139,25 @@ class MarketplaceButtonClickAction : AnAction(), DumbAware {
 }
 
 /**
+ * Action that handles clicks on the Cloud button in the UI.
+ * Executes the corresponding VSCode command via the RPC protocol.
+ */
+class CloudButtonClickAction : AnAction(), DumbAware {
+    private val logger: Logger = Logger.getInstance(CloudButtonClickAction::class.java)
+    private val commandId: String = "roo-cline.cloudButtonClicked"
+
+    /**
+     * Performs the action when the Cloud button is clicked.
+     *
+     * @param e The action event containing context information
+     */
+    override fun actionPerformed(e: AnActionEvent) {
+        logger.debug("Cloud button clicked")
+        executeCommand(commandId, e.project)
+    }
+}
+
+/**
  * Action that opens developer tools for the WebView.
  * Takes a function that provides the current WebView instance.
  *

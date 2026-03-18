@@ -76,7 +76,7 @@ class RPCProtocol(
         /**
          * Unresponsive time threshold (milliseconds)
          */
-        private const val UNRESPONSIVE_TIME = 3 * 1000 // 3s, same as TS implementation
+        private const val UNRESPONSIVE_TIME = 10 * 1000 // 10s, increased to handle slow initialization and network issues
 
         /**
          * RPC protocol symbol (used to identify objects implementing this interface)
