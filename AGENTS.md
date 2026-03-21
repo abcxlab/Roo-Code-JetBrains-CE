@@ -3,7 +3,7 @@
 This file provides guidance to agents when working with code in this repository.
 
 ## Project Overview
-Roo Code for JetBrains is a "Simulation & Adaptation" bridge that runs VSCode extensions (Node.js) inside JetBrains IDEs (JVM).
+Roo Code for JetBrains (CE) is a "Simulation & Adaptation" bridge that runs VSCode extensions (Node.js) inside JetBrains IDEs (JVM).
 
 ## Critical Non-Obvious Rules
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Build script for Roo Code for JetBrains project
+# Build script for Roo Code for JetBrains (CE) project
 # This script builds VSCode extension and IDEA plugin
 
 set -euo pipefail
@@ -490,7 +490,7 @@ show_build_summary() {
 
 # Main build function
 main() {
-    log_info "Starting Roo Code for JetBrains build process..."
+    log_info "Starting Roo Code for JetBrains (CE) build process..."
     log_info "Script: $SCRIPT_NAME v$SCRIPT_VERSION"
     log_info "Platform: $(get_platform)"
     log_info "Project root: $PROJECT_ROOT"

@@ -14,10 +14,10 @@ https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
-    <name>Roo Code for JetBrains</name>
+    <name>Roo Code for JetBrains (CE)</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor url="https://abcxlab.com/">ABC XLAB/vendor>
+    <vendor url="https://abcxlab.com/">ABCXLAB</vendor>
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Simple HTML elements (text formatting, paragraphs, and lists) can be added inside of <![CDATA[ ]]>
@@ -25,8 +25,8 @@ https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
          Guidelines:
     https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
     <description><![CDATA[
-        <h1>RooCode for JetBrains - Run VSCode-based Coding Agents in JetBrains IDEs</h1>
-        <p>RooCode for JetBrains is an innovative cross-platform development tool that enables developers to run roocode agents and extensions within JetBrains IDEs (IntelliJ IDEA, WebStorm, PyCharm, etc.) or other IDE platforms.</p>
+        <h1>Roo Code for JetBrains (CE) - Run VSCode-based Coding Agents in JetBrains IDEs</h1>
+        <p>Roo Code for JetBrains (CE) is an innovative cross-platform development tool that enables developers to run Roo Code agents and extensions within JetBrains IDEs (IntelliJ IDEA, WebStorm, PyCharm, etc.) or other IDE platforms.</p>
 
         <h2>Core Features</h2>
         <ul>
@@ -36,7 +36,7 @@ https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
         </ul>
 
         <h2>Supported IDEs</h2>
-        <p>RooCode currently supports the following JetBrains IDE series:</p>
+        <p>Roo Code currently supports the following JetBrains IDE series:</p>
         <ul>
             <li><strong>IntelliJ IDEA</strong> (Ultimate & Community)</li>
             <li><strong>WebStorm</strong> - JavaScript and TypeScript development</li>

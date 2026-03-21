@@ -1,4 +1,4 @@
-# Roo Code for JetBrains 插件内部进程通信架构
+# Roo Code for JetBrains (CE) 插件内部进程通信架构
 
 **目标读者**: 新加入项目的后端（Kotlin/Java）或前端（TypeScript/Node.js）开发者。
 

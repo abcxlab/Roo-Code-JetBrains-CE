@@ -1,4 +1,4 @@
-# Roo Code for JetBrains (Community Edition)
+# Roo Code for JetBrains (CE)
 
 English | [简体中文](README_zh.md)
 
@@ -8,7 +8,7 @@ English | [简体中文](README_zh.md)
 
 > **Bring the power of Roo Code (Cline) to JetBrains IDEs. A community-driven effort to provide a stable, feature-rich experience where official support is missing.**
 
-Roo Code for JetBrains (Community Edition) allows you to run the full [Roo Code](https://roocode.com) AI assistant within the JetBrains ecosystem. It solves the problem of Roo Code lacking an official, stable plugin for JetBrains IDEs by providing a deeply optimized environment to run the VSCode-based agent.
+Roo Code for JetBrains (CE) allows you to run the full [Roo Code](https://roocode.com) AI assistant within the JetBrains ecosystem. It solves the problem of Roo Code lacking an official, stable plugin for JetBrains IDEs by providing a deeply optimized environment to run the VSCode-based agent.
 
 ### 💡 Why this version?
 While an official branding fork exists, it inherits many unresolved issues from the original RunVSAgent project, making it difficult to use in daily production. This community edition (**abcxlab**) is dedicated to fixing those gaps:
@@ -29,7 +29,7 @@ While an official branding fork exists, it inherits many unresolved issues from 
 ## 🔧 Supported IDEs
 
 ### Jetbrains IDEs
-Roo Code for JetBrains currently supports the following JetBrains IDE series:
+Roo Code for JetBrains (CE) currently supports the following JetBrains IDE series:
 
 - **IntelliJ IDEA** (Ultimate & Community)
 - **WebStorm** - JavaScript and TypeScript development

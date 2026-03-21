@@ -1,4 +1,4 @@
-# 架构设计文档：Roo Code for JetBrains
+# 架构设计文档：Roo Code for JetBrains (CE)
 
 > **使用说明**: 本模板用于编写软件项目架构设计文档。模板提供了架构设计的标准结构和关键要素，帮助开发团队理解系统的整体架构、组件关系及技术选型。
 
@@ -8,12 +8,12 @@
 
 | 项目 | 描述 |
 |------|------|
-| 项目名称 | Roo Code for JetBrains |
-| 文档版本 | v1.1.0 |
+| 项目名称 | Roo Code for JetBrains (CE) |
+| 文档版本 | v1.2.0 |
 | 作者 | Roo Code Team |
 | 审核人 | - |
 | 创建日期 | 2025-08-15 |
-| 最后更新 | 2026-03-16 |
+| 最后更新 | 2026-03-21 |
 | 状态 | 已发布 |
 
 ## 📝 修订历史
@@ -22,6 +22,7 @@
 |------|------|------|------|
 | 0.1 | 2025-08-15 | 初稿，完成架构目标、整体架构概述和附录术语表 | AI Assistant |
 | 1.1 | 2026-03-16 | 品牌重塑为 Roo Code for JetBrains，更新包名和通信逻辑 | Roo Code Team |
+| 1.2 | 2026-03-21 | 统一名称为 Roo Code for JetBrains (CE) 并清理旧名称 | Roo Code Team |
 
 ## 🎯 1. 架构设计目标
 
@@ -63,7 +64,7 @@
 
 ### 2.1 架构概述
 
-Roo Code for JetBrains 的核心架构是一种**模拟与适配（Simulation & Adaptation）**架构。此架构选择的根本目的是为了**最大化地复用现有 VSCode 生态和插件代码**，避免在 JetBrains 平台上完全重写功能强大的 VSCode 插件（如 Roo Code），同时将两个异构平台（JVM vs Node.js）的差异性完全隔离在 IntelliJ 插件这个“适配层”中。
+Roo Code for JetBrains (CE) 的核心架构是一种**模拟与适配（Simulation & Adaptation）**架构。此架构选择的根本目的是为了**最大化地复用现有 VSCode 生态和插件代码**，避免在 JetBrains 平台上完全重写功能强大的 VSCode 插件（如 Roo Code），同时将两个异构平台（JVM vs Node.js）的差异性完全隔离在 IntelliJ 插件这个“适配层”中。
 
 系统由两个独立但紧密协作的进程组成：
 1.  **IntelliJ 插件 (主/Master)**: 作为系统的控制中心，它运行在 IntelliJ IDE 的 JVM 中。它不仅负责提供所有与 IDE 交互的原生功能（如创建工具窗口、文件操作），还通过模拟 VSCode 的主进程（Main Thread）行为，响应来自 `extension_host` 的 RPC 请求。

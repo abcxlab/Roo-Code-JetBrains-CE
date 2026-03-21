@@ -1,13 +1,13 @@
-# Roo Code for JetBrains 开发者手册
+# Roo Code for JetBrains (CE) 开发者手册
 
 ## 📌 文档信息
 
 | 项目 | 描述 |
 |------|------|
-| 产品名称 | Roo Code for JetBrains |
-| 版本号 | v3.51.1 |
-| 文档版本 | v1.1 |
-| 最后更新 | 2026-03-16 |
+| 产品名称 | Roo Code for JetBrains (CE) |
+| 版本号 | 3.51.1.1 |
+| 文档版本 | v1.2 |
+| 最后更新 | 2026-03-21 |
 | 适用用户 | 二次开发者、插件贡献者 |
 
 ---
@@ -16,7 +16,7 @@
 
 ### 目的与范围
 
-本手册旨在为 Roo Code for JetBrains 项目的二次开发者 and 贡献者提供一份分层式、渐进式的技术指南。无论您是希望快速上手、进行日常功能开发，还是深入探索项目底层原理，都能在这里找到清晰的路径。
+本手册旨在为 Roo Code for JetBrains (CE) 项目的二次开发者 and 贡献者提供一份分层式、渐进式的技术指南。无论您是希望快速上手、进行日常功能开发，还是深入探索项目底层原理，都能在这里找到清晰的路径。
 
 ### 如何使用本文档
 
@@ -49,7 +49,7 @@
 
     ```bash
     # 首先，在 GitHub 上 Fork 本项目
-    git clone https://github.com/YOUR_USERNAME/Roo-Code-JetBrains.git
+    git clone https://github.com/abcxlab/Roo-Code-JetBrains.git
     cd Roo-Code-JetBrains
     ```
 
@@ -84,7 +84,7 @@
 
     ```kotlin
     override fun runActivity(project: Project) {
-        println("====== Hello from Roo Code for JetBrains! Plugin is running. ======") // <-- 添加此行
+        println("====== Hello from Roo Code for JetBrains (CE)! Plugin is running. ======") // <-- 添加此行
         // ... a rest of the method
     }
     ```
@@ -93,7 +93,7 @@
     再次运行 `runIde` Gradle 任务。
 
 4. **查看日志**
-    当新的 IDEA 沙箱实例启动后，回到你原来的主 IDEA 窗口，查看下方的 **Run** 面板。你应该能看到我们刚刚添加的 "Hello from Roo Code for JetBrains!" 日志输出。
+    当新的 IDEA 沙箱实例启动后，回到你原来的主 IDEA 窗口，查看下方的 **Run** 面板。你应该能看到我们刚刚添加的 "Hello from Roo Code for JetBrains (CE)!" 日志输出。
 
 ---
 
@@ -101,7 +101,7 @@
 
 ### 2.1 核心架构速览
 
-Roo Code for JetBrains 的架构精髓在于**“模拟与适配”**。您可以将整个系统理解为一个“翻译官”，它让 JetBrains IDE 和 VSCode 插件两个原本不兼容的生态能够顺畅交流。
+Roo Code for JetBrains (CE) 的架构精髓在于**“模拟与适配”**。您可以将整个系统理解为一个“翻译官”，它让 JetBrains IDE 和 VSCode 插件两个原本不兼容的生态能够顺畅交流。
 
 ```mermaid
 graph TD
