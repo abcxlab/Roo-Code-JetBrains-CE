@@ -1,6 +1,7 @@
 [submodule "deps/roo-code"]
 	path = deps/roo-code
-	url = https://github.com/abcxlab/Roo-Code.git
+	url = https://github.com/abcxlab/Roo-Code-CE.git
+	branch = develop
 [submodule "deps/vscode"]
 	path = deps/vscode
 	url = https://github.com/microsoft/vscode.git
