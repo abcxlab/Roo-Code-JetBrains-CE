@@ -64,13 +64,14 @@ plugin.properties
 
 .roo
 .opencode/
+.claude/
 prompts/
+specs/
+.mcp.json
 
 # [SKILL_BEGIN: fr-sdd]
-specs/archive/
+specs/research/
 specs/.*
 specs/fr*
 specs/bug*
-specs/research/
 # [SKILL_END: fr-sdd]
-

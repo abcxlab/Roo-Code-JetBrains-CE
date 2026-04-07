@@ -10,8 +10,13 @@ import com.intellij.diff.DiffManager
 import com.intellij.diff.chains.SimpleDiffRequestChain
 import com.intellij.diff.contents.DiffContent
 import com.intellij.diff.requests.SimpleDiffRequest
+import com.intellij.ide.DataManager
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.roocode.jetbrains.commands.CommandRegistry
@@ -85,6 +90,15 @@ fun registerOpenEditorAPICommands(project: Project,registry: CommandRegistry) {
             override fun returns(): String? {
                 return "void"
             }
+        }
+    )
+
+    registry.registerCommand(
+        object : ICommand {
+            override fun getId(): String = "markdown.showPreview"
+            override fun getMethod(): String = "markdown_show_preview"
+            override fun handler(): Any = OpenEditorAPICommands(project)
+            override fun returns(): String? = "void"
         }
     )
 }
@@ -162,6 +176,50 @@ class OpenEditorAPICommands(val project: Project) {
             logger.debug("Opened changes window with ${requests.size} files")
         } else {
             logger.warn("No valid diff requests created from resource list")
+        }
+
+        return null
+    }
+
+    /**
+     * Shows a preview for a markdown file.
+     * Maps to VSCode's 'markdown.showPreview' command.
+     *
+     * @param uri Map containing URI components for the markdown file
+     * @return null after operation completes
+     */
+    suspend fun markdown_show_preview(uri: Map<String, Any?>): Any? {
+        val markdownURI = createURI(uri)
+        val path = markdownURI.path
+        logger.debug("Showing markdown preview for: $path")
+
+        val vfs = LocalFileSystem.getInstance()
+        val fileIO = File(path)
+        
+        // Ensure file exists and VFS is aware of it
+        if (!fileIO.exists()) {
+            logger.warn("Markdown file not found on disk: $path")
+            return null
+        }
+        
+        val virtualFile = vfs.refreshAndFindFileByPath(path) ?: run {
+            logger.warn("VFS failed to find markdown file: $path")
+            return null
+        }
+
+        ApplicationManager.getApplication().invokeLater {
+            val fileEditorManager = FileEditorManager.getInstance(project)
+            fileEditorManager.openFile(virtualFile, true)
+
+            // Try to trigger the "Show Preview Only" action if available (standard Markdown plugin)
+            val actionManager = ActionManager.getInstance()
+            val showPreviewAction = actionManager.getAction("Markdown.TextEditor.ShowPreviewOnly")
+            if (showPreviewAction != null) {
+                val dataContext = DataManager.getInstance().getDataContext(fileEditorManager.getSelectedEditor(virtualFile)?.component)
+                val event = AnActionEvent.createFromAnAction(showPreviewAction, null, ActionPlaces.UNKNOWN, dataContext)
+                showPreviewAction.actionPerformed(event)
+                logger.debug("Triggered Markdown.TextEditor.ShowPreviewOnly action")
+            }
         }
 
         return null

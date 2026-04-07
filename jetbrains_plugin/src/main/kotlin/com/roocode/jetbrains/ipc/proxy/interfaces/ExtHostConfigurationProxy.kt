@@ -18,8 +18,9 @@ interface ExtHostConfigurationProxy {
     /**
      * Update configuration
      * @param configModel Configuration model
+     * @param change Configuration change
      */
-    fun updateConfiguration(configModel: Map<String, Any?>)
+    fun acceptConfigurationChanged(configModel: Map<String, Any?>, change: Map<String, Any?>)
     
     /**
      * Get configuration

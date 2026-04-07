@@ -31,7 +31,7 @@ class RooCodeProtocolHandler : JBProtocolCommand("WeCode-AI.RunVSAgent.roo-cline
     ): JBProtocolCommandResult? {
         // target contains the path after idea://WeCode-AI.RunVSAgent.roo-cline/
         // e.g. "auth/clerk/callback"
-        logger.debug("Received protocol command: target=$target, parameters=$parameters, fragment=$fragment")
+        logger.info("Received protocol command: target=$target, parameters=$parameters, fragment=$fragment")
 
         try {
             // Use the actual extension ID.
@@ -47,7 +47,7 @@ class RooCodeProtocolHandler : JBProtocolCommand("WeCode-AI.RunVSAgent.roo-cline
                 (if (!fragment.isNullOrEmpty()) "#$fragment" else "")
             
             val parsedUri = URI.create(uriString)
-            logger.debug("Reconstructed URI for Extension Host: $uriString")
+            logger.info("Reconstructed URI for Extension Host: $uriString")
             
             // Dispatch to the correct project's extension host handler via RPC
             dispatchUri(extensionId, parsedUri)
@@ -67,7 +67,7 @@ class RooCodeProtocolHandler : JBProtocolCommand("WeCode-AI.RunVSAgent.roo-cline
     private fun dispatchUri(extensionId: String, uri: URI) {
         val projects = ProjectManager.getInstance().openProjects
         // DEBUG: RooCode Cloud Integration
-        logger.debug("Attempting to dispatch URI to ${projects.size} open projects")
+        logger.info("Attempting to dispatch URI to ${projects.size} open projects")
         
         if (projects.isEmpty()) {
             logger.warn("No open projects available to dispatch URI")
@@ -76,7 +76,7 @@ class RooCodeProtocolHandler : JBProtocolCommand("WeCode-AI.RunVSAgent.roo-cline
 
         for (project in projects) {
             // DEBUG: RooCode Cloud Integration
-            logger.debug("Trying to dispatch to project: ${project.name}")
+            logger.info("Trying to dispatch to project: ${project.name}")
             val rpcProtocol = project.getService(PluginContext::class.java)?.getRPCProtocol() ?: continue
             val proxy = rpcProtocol.getProxy(ServiceProxyRegistry.ExtHostContext.ExtHostUrls)
 
@@ -86,10 +86,10 @@ class RooCodeProtocolHandler : JBProtocolCommand("WeCode-AI.RunVSAgent.roo-cline
             // Since MainThreadUrls is not a project service, we cannot easily retrieve the exact handle here.
             try {
                 proxy.handleExternalUri(0, uriToComponents(uri))
-                logger.debug("Successfully dispatched URI to project '${project.name}' for extension $extensionId")
+                logger.info("Successfully dispatched URI to project '${project.name}' for extension $extensionId")
                 return
             } catch (e: Exception) {
-                logger.debug("Failed to dispatch URI via project '${project.name}': ${e.message}")
+                logger.info("Failed to dispatch URI via project '${project.name}': ${e.message}")
             }
         }
 

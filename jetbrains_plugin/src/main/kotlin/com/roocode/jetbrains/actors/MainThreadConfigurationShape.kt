@@ -6,10 +6,12 @@ package com.roocode.jetbrains.actors
 
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 import com.roocode.jetbrains.core.PluginContext
+import com.roocode.jetbrains.core.ServiceProxyRegistry
 import com.roocode.jetbrains.util.URI
 import com.roocode.jetbrains.util.URIComponents
 
@@ -170,6 +172,11 @@ class MainThreadConfiguration : MainThreadConfigurationShape {
                 val properties = PropertiesComponent.getInstance()
                 val userPrefixedKey = "user.$fullKey"
                 storeValue(properties, userPrefixedKey, value)
+                
+                // Notify extension host of configuration changes, critical for settings like "debug"
+                if (key == "debug" || key == "roo-cline.debug") {
+                    notifyConfigurationChanged()
+                }
             }
             else -> {
                 // Memory-level configuration is temporary and not persisted
@@ -356,6 +363,53 @@ class MainThreadConfiguration : MainThreadConfigurationShape {
         }
     }
     
+    /**
+     * Notifies the extension host that configuration has changed.
+     * This triggers an onDidChangeConfiguration event in the extension host.
+     */
+    private fun notifyConfigurationChanged() {
+        val activeProject = getActiveProject() ?: return
+        val protocol = activeProject.service<PluginContext>().getRPCProtocol() ?: return
+        
+        try {
+            val proxy = protocol.getProxy(ServiceProxyRegistry.ExtHostContext.ExtHostConfiguration)
+            // Read persisted user settings for configuration initialization
+            val properties = com.intellij.ide.util.PropertiesComponent.getInstance()
+            val isDebugMode = properties.getBoolean("user.debug", false) || properties.getBoolean("user.roo-cline.debug", false)
+            
+            // Create user configuration model with persisted settings
+            val userContents = mapOf(
+                "roo-cline" to mapOf("debug" to isDebugMode),
+                "debug" to isDebugMode
+            )
+            
+            val userConfigModel = mapOf(
+                "contents" to userContents,
+                "keys" to listOf("roo-cline.debug", "debug"),
+                "overrides" to emptyList<String>()
+            )
+
+            // Create full configuration model
+            val emptyMap = mapOf("contents" to emptyMap<String, Any>(), "keys" to emptyList<String>(), "overrides" to emptyList<String>())
+            val fullConfigModel = mapOf(
+                "defaults" to emptyMap,
+                "policy" to emptyMap,
+                "application" to emptyMap,
+                "userLocal" to userConfigModel,
+                "userRemote" to emptyMap,
+                "workspace" to emptyMap,
+                "folders" to emptyList<Any>(),
+                "configurationScopes" to emptyList<Any>()
+            )
+
+            // Use acceptConfigurationChanged instead of updateConfiguration
+            proxy.acceptConfigurationChanged(fullConfigModel, emptyMap<String, Any?>())
+            logger.debug("Notified extension host of configuration change: debug=$isDebugMode")
+        } catch (e: Exception) {
+            logger.error("Failed to notify configuration change to extension host", e)
+        }
+    }
+
     /**
      * Disposes of resources when the configuration manager is no longer needed.
      * Called when the plugin or component is being unloaded.

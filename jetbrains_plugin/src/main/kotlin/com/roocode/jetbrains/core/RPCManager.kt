@@ -62,9 +62,25 @@ class RPCManager(
                 val themeName = if (isDark) "Default Dark Modern" else "Default Light Modern"
                 logger.debug("Detected theme via UIManager: $themeName (isDark=$isDark)")
 
-                // Create empty configuration model
+                // Read persisted user settings for configuration initialization
+                val properties = com.intellij.ide.util.PropertiesComponent.getInstance()
+                val isDebugMode = properties.getBoolean("user.debug", false) || properties.getBoolean("user.roo-cline.debug", false)
+                
+                // Create user configuration model with persisted settings
+                val userContents = mapOf(
+                    "roo-cline" to mapOf("debug" to isDebugMode),
+                    "debug" to isDebugMode
+                )
+                
+                val userConfigModel = mapOf(
+                    "contents" to userContents,
+                    "keys" to listOf("roo-cline.debug", "debug"),
+                    "overrides" to emptyList<String>()
+                )
+
+                // Create full configuration model
                 val emptyMap = mapOf("contents" to emptyMap<String, Any>(), "keys" to emptyList<String>(), "overrides" to emptyList<String>())
-                val emptyConfigModel = mapOf(
+                val fullConfigModel = mapOf(
                     "defaults" to mapOf(
                         "contents" to mapOf("workbench" to mapOf("colorTheme" to themeName)),
                         "keys" to emptyList<String>(),
@@ -72,7 +88,7 @@ class RPCManager(
                     ),
                     "policy" to emptyMap,
                     "application" to emptyMap,
-                    "userLocal" to emptyMap,
+                    "userLocal" to userConfigModel, // Pass persisted user configuration here
                     "userRemote" to emptyMap,
                     "workspace" to emptyMap,
                     "folders" to emptyList<Any>(),
@@ -80,7 +96,7 @@ class RPCManager(
                 )
 
                 // Directly call the interface method
-                extHostConfiguration.initializeConfiguration(emptyConfigModel)
+                extHostConfiguration.initializeConfiguration(fullConfigModel)
 
                 // Get ExtHostWorkspace proxy
                 val extHostWorkspace = rpcProtocol.getProxy(ServiceProxyRegistry.ExtHostContext.ExtHostWorkspace)
