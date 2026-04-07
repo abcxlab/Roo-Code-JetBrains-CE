@@ -63,13 +63,19 @@ https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 
     <!-- Change notes for the plugin -->
     <change-notes><![CDATA[
+     <h3>Version 3.51.1.1</h3>
+        <ul>
+            <li>Feat: enable debug logging and add markdown preview command support</li>
+        </ul>
         <h3>Version 3.51.1.1</h3>
         <ul>
-            <li>Feat: rename internal components from Wecoder to RooCode to avoid conflicts with other coders</li>
+            <li>Feat: rename internal components from Wecoder to RooCode (CE） to avoid conflicts with other coders</li>
+            <li>Support Roo Cloud</li>
         </ul>
-        <h3>Version 3.51.1.0</h3>
+        <h3>Version 3.51.1</h3>
         <ul>
             <li>Upgrade roo-code to v3.51.1</li>
+            <li>Support worktrees</li>
         </ul>
         <h3>Version v3.50.5</h3>
         <ul>
@@ -150,13 +156,13 @@ https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
         <h3>Version 3.28.16</h3>
         <ul>
             <li>Upgrade roo-code to v3.28.16</li>
-            <li>>Feat: support keymap and i18n</li>
+            <li>Feat: support keymap and i18n</li>
         </ul>
 
         <h3>Version 3.28.15</h3>
         <ul>
             <li>Upgrade roo-code to v3.28.15</li>
-            <li>>Fix: support dumb mode completely</li>
+            <li>Fix: support dumb mode completely</li>
         </ul>
 
         <h3>Version 32.28.7</h3>

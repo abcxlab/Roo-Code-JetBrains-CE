@@ -17,21 +17,55 @@ import java.net.URI
  * The command name is "WeCode-AI.RunVSAgent.roo-cline", which matches the extensionId.
  * The target parameter will contain the sub-path (e.g., "auth/clerk/callback").
  *
- * Note: We override [executeAndGetResult] instead of [execute] because the base class's
- * [execute] method uses a raw Java `Map` type (without generics) which causes a Kotlin
- * compiler error "'execute' overrides nothing" when trying to override with `Map<String, String>`.
+ * We override BOTH [execute] and [executeAndGetResult] to ensure compatibility across
+ * different IntelliJ Platform versions:
+ * - Older versions (2023.3) call [execute] directly.
+ * - Newer versions (2024.1+) call [executeAndGetResult], which by default delegates to [execute].
+ * Since we override [executeAndGetResult] without calling super, [execute] is only invoked
+ * on older IDEs that call it directly.
  */
 class RooCodeProtocolHandler : JBProtocolCommand("WeCode-AI.RunVSAgent.roo-cline") {
     private val logger = Logger.getInstance(RooCodeProtocolHandler::class.java)
 
+    /**
+     * Primary entry point for IntelliJ 2024.1+ (with [JBProtocolCommandResult] support).
+     * The IDE calls this method when it receives a matching protocol URI.
+     * We do NOT call super here, so [execute] is not invoked again by the base class.
+     */
     override suspend fun executeAndGetResult(
         target: String?,
         parameters: Map<String, String>,
         fragment: String?
     ): JBProtocolCommandResult? {
-        // target contains the path after idea://WeCode-AI.RunVSAgent.roo-cline/
-        // e.g. "auth/clerk/callback"
-        logger.info("Received protocol command: target=$target, parameters=$parameters, fragment=$fragment")
+        logger.info("executeAndGetResult called: target=$target, fragment=$fragment")
+        val errorMessage = handleProtocolRequest(target, parameters, fragment)
+        return JBProtocolCommandResult(errorMessage)
+    }
+
+    /**
+     * Fallback entry point for older IntelliJ versions (2023.3) that call [execute] directly.
+     * In newer versions, [executeAndGetResult] is called instead and this method is NOT invoked
+     * because our [executeAndGetResult] override does not call super.
+     */
+    override suspend fun execute(
+        target: String?,
+        parameters: Map<String, String>,
+        fragment: String?
+    ): String? {
+        logger.info("execute called: target=$target, fragment=$fragment")
+        return handleProtocolRequest(target, parameters, fragment)
+    }
+
+    /**
+     * Common protocol handling logic called from both [execute] and [executeAndGetResult].
+     * @return null on success, or an error message string on failure.
+     */
+    private fun handleProtocolRequest(
+        target: String?,
+        parameters: Map<String, String>,
+        fragment: String?
+    ): String? {
+        logger.info("RooCode Protocol Handler invoked: target=$target, parameters=$parameters, fragment=$fragment")
 
         try {
             // Use the actual extension ID.
@@ -40,24 +74,24 @@ class RooCodeProtocolHandler : JBProtocolCommand("WeCode-AI.RunVSAgent.roo-cline
 
             // Reconstruct URI components for the extension host.
             // We use the dynamically determined scheme to match what Extension Host expects.
-            val scheme = com.roocode.jetbrains.core.ExtensionHostManager.getIdeProtocolScheme()
+            val scheme = ExtensionHostManager.getIdeProtocolScheme()
             val queryString = parameters.entries.joinToString("&") { "${it.key}=${it.value}" }
             val uriString = "$scheme://$extensionId/$subPath" +
-                (if (queryString.isNotEmpty()) "?$queryString" else "") +
-                (if (!fragment.isNullOrEmpty()) "#$fragment" else "")
-            
+                    (if (queryString.isNotEmpty()) "?$queryString" else "") +
+                    (if (!fragment.isNullOrEmpty()) "#$fragment" else "")
+
             val parsedUri = URI.create(uriString)
             logger.info("Reconstructed URI for Extension Host: $uriString")
-            
+
             // Dispatch to the correct project's extension host handler via RPC
             dispatchUri(extensionId, parsedUri)
         } catch (e: Exception) {
             logger.error("Failed to handle protocol command: target=$target", e)
-            return JBProtocolCommandResult("Error: ${e.message}")
+            return "Error: ${e.message}"
         }
 
-        // null dialogMessage means success
-        return JBProtocolCommandResult(null)
+        // null means success (no error dialog)
+        return null
     }
 
     /**
@@ -66,16 +100,14 @@ class RooCodeProtocolHandler : JBProtocolCommand("WeCode-AI.RunVSAgent.roo-cline
      */
     private fun dispatchUri(extensionId: String, uri: URI) {
         val projects = ProjectManager.getInstance().openProjects
-        // DEBUG: RooCode Cloud Integration
         logger.info("Attempting to dispatch URI to ${projects.size} open projects")
-        
+
         if (projects.isEmpty()) {
             logger.warn("No open projects available to dispatch URI")
             return
         }
 
         for (project in projects) {
-            // DEBUG: RooCode Cloud Integration
             logger.info("Trying to dispatch to project: ${project.name}")
             val rpcProtocol = project.getService(PluginContext::class.java)?.getRPCProtocol() ?: continue
             val proxy = rpcProtocol.getProxy(ServiceProxyRegistry.ExtHostContext.ExtHostUrls)
