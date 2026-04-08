@@ -63,7 +63,7 @@ https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 
     <!-- Change notes for the plugin -->
     <change-notes><![CDATA[
-     <h3>Version 3.51.1.1</h3>
+     <h3>Version 3.51.1.2</h3>
         <ul>
             <li>Feat: enable debug logging and add markdown preview command support</li>
         </ul>
