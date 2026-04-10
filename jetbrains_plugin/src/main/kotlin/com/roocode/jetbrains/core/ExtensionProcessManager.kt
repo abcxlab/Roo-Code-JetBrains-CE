@@ -40,8 +40,9 @@ class ExtensionProcessManager : Disposable {
         // Plugin ID
         private const val PLUGIN_ID = PluginConstants.PLUGIN_ID
 
-        // Minimum required Node.js version
-        private val MIN_REQUIRED_NODE_VERSION = NodeVersion(20, 6, 0, "20.6.0")
+        // Minimum required Node.js version (public for external access)
+        @JvmStatic
+        val MIN_REQUIRED_NODE_VERSION = NodeVersion(20, 6, 0, "20.6.0")
     }
 
     private val logger = Logger.getInstance(ExtensionProcessManager::class.java)

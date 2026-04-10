@@ -57,11 +57,27 @@ object NodeVersionUtil {
      * @return Node.js version information, or null if failed to get
      */
     fun getNodeVersion(nodePath: String): NodeVersion? {
+        return getNodeVersionWithTimeout(nodePath, 10000)
+    }
+
+    /**
+     * Get Node.js version information with timeout protection
+     * @param nodePath Path to Node.js executable
+     * @param timeoutMs Timeout in milliseconds
+     * @return Node.js version information, or null if failed to get or timeout
+     */
+    fun getNodeVersionWithTimeout(nodePath: String, timeoutMs: Long): NodeVersion? {
         return try {
             val process = ProcessBuilder(nodePath, "--version").start()
-            val output = process.inputStream.bufferedReader().readText().trim()
-            process.waitFor()
             
+            // Wait for process with timeout protection
+            if (!process.waitFor(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                LOG.warn("Node.js version check timed out after $timeoutMs ms")
+                process.destroyForcibly()
+                return null
+            }
+            
+            val output = process.inputStream.bufferedReader().readText().trim()
             parseNodeVersion(output)
         } catch (e: Exception) {
             LOG.warn("Failed to get Node.js version", e)

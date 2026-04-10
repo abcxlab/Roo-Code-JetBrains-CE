@@ -6,6 +6,7 @@ package com.roocode.jetbrains.plugin
 
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.TimeUnit
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
@@ -14,6 +15,8 @@ import com.intellij.openapi.startup.StartupActivity
 import com.intellij.openapi.Disposable
 import com.roocode.jetbrains.core.ExtensionProcessManager
 import com.roocode.jetbrains.core.ExtensionSocketServer
+import com.roocode.jetbrains.core.ExtensionUnixDomainSocketServer
+import com.roocode.jetbrains.core.ISocketServer
 import com.roocode.jetbrains.core.ServiceProxyRegistry
 import com.roocode.jetbrains.problems.ProblemManager
 import com.roocode.jetbrains.webview.WebViewManager
@@ -28,6 +31,10 @@ import com.intellij.ui.jcef.JBCefApp
 import com.intellij.openapi.application.ApplicationInfo
 import com.roocode.jetbrains.core.*
 import com.roocode.jetbrains.util.ExtensionUtils
+import com.roocode.jetbrains.util.NodeVersion
+import com.roocode.jetbrains.util.NodeVersionUtil
+import com.roocode.jetbrains.util.NotificationUtil
+import com.roocode.jetbrains.util.RooCodeBundle
 import com.roocode.jetbrains.util.PluginConstants
 import com.roocode.jetbrains.util.PluginResourceUtil
 import java.io.File
@@ -208,6 +215,17 @@ class RooCoderPluginService(private var currentProject: Project) : Disposable {
         coroutineScope.launch {
             try {
                 initPlatformFiles()
+                
+                // Check Node.js environment before starting extension process (only in non-debug mode)
+                if (DEBUG_TYPE != com.roocode.jetbrains.plugin.DEBUG_MODE.ALL) {
+                    if (!checkNodeEnvironment()) {
+                        logger.error("Node.js environment check failed, aborting initialization")
+                        initializationStarted.set(false)
+                        initializationComplete.complete(false)
+                        return@launch
+                    }
+                }
+                
                 // Get project path
                 val projectPath = project.basePath ?: ""
 
@@ -333,6 +351,44 @@ class RooCoderPluginService(private var currentProject: Project) : Disposable {
 
 
         initializationStarted.set(false)
+    }
+
+    /**
+     * Check Node.js environment before starting extension process
+     * @return Whether the environment check passed
+     */
+    private fun checkNodeEnvironment(): Boolean {
+        // 1. Quick check for Node.js executable
+        val nodePath = ExtensionUtils.findNodeExecutable()
+        if (nodePath == null) {
+            NotificationUtil.showError(
+                RooCodeBundle.message("notification.node.missing.title"),
+                RooCodeBundle.message("notification.node.missing.content", ExtensionProcessManager.MIN_REQUIRED_NODE_VERSION)
+            )
+            return false
+        }
+        
+        // 2. Version check with timeout protection (5 seconds)
+        val nodeVersion = NodeVersionUtil.getNodeVersionWithTimeout(nodePath, 5000)
+        if (nodeVersion == null) {
+            NotificationUtil.showError(
+                RooCodeBundle.message("notification.node.timeout.title"),
+                RooCodeBundle.message("notification.node.timeout.content")
+            )
+            return false
+        }
+        
+        // 3. Version compatibility check
+        if (!NodeVersionUtil.isVersionSupported(nodeVersion, ExtensionProcessManager.MIN_REQUIRED_NODE_VERSION)) {
+            NotificationUtil.showError(
+                RooCodeBundle.message("notification.node.incompatible.title"),
+                RooCodeBundle.message("notification.node.incompatible.content", nodeVersion.original, ExtensionProcessManager.MIN_REQUIRED_NODE_VERSION)
+            )
+            return false
+        }
+        
+        logger.info("Node.js environment check passed: $nodeVersion")
+        return true
     }
 
     /**

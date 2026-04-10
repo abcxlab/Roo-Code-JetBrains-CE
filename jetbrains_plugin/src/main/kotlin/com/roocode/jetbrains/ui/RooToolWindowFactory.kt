@@ -8,6 +8,7 @@ import com.intellij.ide.ui.LafManagerListener
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.DumbAware
@@ -32,6 +33,7 @@ import com.roocode.jetbrains.webview.WebViewInstance
 import com.roocode.jetbrains.webview.WebViewManager
 import com.roocode.jetbrains.util.PluginConstants
 import com.roocode.jetbrains.util.RooCodeBundle
+import kotlinx.coroutines.*
 import java.awt.BorderLayout
 import java.awt.datatransfer.StringSelection
 import java.awt.Toolkit
@@ -94,6 +96,9 @@ class RooToolWindowFactory : ToolWindowFactory, DumbAware {
         // Content panel
         private val contentPanel = JPanel(BorderLayout())
 
+        // Coroutine scope for UI async tasks
+        private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
         // Placeholder label
         private val placeholderLabel = JLabel(createLoadingText())
 
@@ -112,8 +117,7 @@ class RooToolWindowFactory : ToolWindowFactory, DumbAware {
         /**
          * Create loading text in HTML format with localized message and theme-aware background
          */
-        private fun createLoadingText(): String {
-            val loadingText = RooCodeBundle.message("toolwindow.initializing.text")
+        private fun createLoadingText(text: String = RooCodeBundle.message("toolwindow.initializing.text")): String {
             val bgColor = UIUtil.getPanelBackground()
             val bgHex = String.format("#%02x%02x%02x", bgColor.red, bgColor.green, bgColor.blue)
             val fgColor = UIUtil.getLabelForeground()
@@ -123,8 +127,8 @@ class RooToolWindowFactory : ToolWindowFactory, DumbAware {
             return """
                 <html>
                   <body style='background-color: $bgHex; color: $fgHex; margin: 0; padding: 0; font-family: sans-serif; height: 100vh; display: table; width: 100%;'>
-                    <div style='display: table-cell; vertical-align: middle; text-align: center;'>
-                      $loadingText
+                    <div style='display: table-cell; vertical-align: middle; text-align: center; padding: 20px;'>
+                      $text
                     </div>
                   </body>
                 </html>
@@ -274,6 +278,26 @@ class RooToolWindowFactory : ToolWindowFactory, DumbAware {
         }
 
         init {
+            // Dispatcher result from plugin service
+            val pluginService = RooCoderPlugin.getInstance(project)
+
+            coroutineScope.launch {
+                try {
+                    val success = withContext(Dispatchers.IO) {
+                        pluginService.waitForInitialization()
+                    }
+                    if (!success) {
+                        ApplicationManager.getApplication().invokeLater {
+                            placeholderLabel.text = createLoadingText(RooCodeBundle.message("toolwindow.init.failed.node.missing"))
+                            placeholderLabel.icon = AllIcons.General.Error
+                            logger.warn("Plugin initialization failed, UI updated to show error state")
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.error("Error waiting for plugin initialization", e)
+                }
+            }
+
             // Try to get existing WebView
             webViewManager.getLatestWebView()?.let { webView ->
                 // Bind the WebView instance locally
@@ -324,6 +348,10 @@ class RooToolWindowFactory : ToolWindowFactory, DumbAware {
                 if (resizeDebounceTimer.isRunning) {
                     resizeDebounceTimer.stop()
                 }
+            })
+
+            Disposer.register(toolWindow.disposable, Disposable {
+                coroutineScope.cancel()
             })
 
             // Add a component listener that restarts the debounce timer on each resize event.
