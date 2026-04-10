@@ -7,6 +7,7 @@ package com.roocode.jetbrains.ui
 import com.intellij.ide.ui.LafManagerListener
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.AnAction
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
@@ -62,10 +63,11 @@ class RooToolWindowFactory : ToolWindowFactory, DumbAware {
 
         // toolbar
         val titleActions = mutableListOf<AnAction>()
-        val action = ActionManager.getInstance().getAction("RooCoderToolbarGroup")
-        if (action != null) {
-            titleActions.add(action)
+        val actionGroup = ActionManager.getInstance().getAction("RooCoderToolbarGroup")
+        if (actionGroup is DefaultActionGroup) {
+            titleActions.addAll(actionGroup.getChildActionsOrStubs())
         }
+
         // Add developer tools button only in debug mode
         if ( RooCoderPluginService.getDebugMode() != DEBUG_MODE.NONE) {
             titleActions.add(OpenDevToolsAction { project.getService(WebViewManager::class.java).getLatestWebView() })

@@ -34,14 +34,20 @@ class LocalCefResHandle(val resourceBasePath: String, val request: CefRequest?) 
     private var offset = 0
 
     init {
-        val requestPath = request?.url?.decodeURLPart()?.replace("http://localhost:","")?.substringAfter("/")?.substringBefore("?")
-            requestPath?.let {
-                val filePath = if (requestPath.isEmpty()) {
-                    "$resourceBasePath/index.html"
-                } else {
-                    "$resourceBasePath/$requestPath"
-                }
-                file = File(filePath)
+        // More robust URL parsing to handle port variations and trailing slashes
+        val rawUrl = request?.url ?: ""
+        val requestPath = rawUrl.decodeURLPart()
+            .replaceFirst(Regex("^https?://localhost(:[0-9]+)?/"), "")
+            .substringBefore("?")
+            .trim('/')
+
+        requestPath.let {
+            val filePath = if (it.isEmpty()) {
+                "$resourceBasePath/index.html"
+            } else {
+                "$resourceBasePath/$it"
+            }
+            file = File(filePath)
 
                 if (file!!.exists() && file!!.isFile) {
                 try {

@@ -7,6 +7,7 @@
 | ID | Feature Name | Status | Owner | Domain |
 | :--- | :--- | :--- | :--- | :--- |
 | fr001 | 对接 Worktree 打开与切换功能 | Archived | @Qiang | Bridge |
+| fr002 | JCEF WebView 刷新与稳定性优化 | In Progress | @Roo | Bridge |
 
 ## 2. Domain Index (领域分片索引)
 

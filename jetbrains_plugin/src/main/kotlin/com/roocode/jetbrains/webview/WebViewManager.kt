@@ -17,6 +17,8 @@ import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
 import com.intellij.ui.scale.JBUIScale
+import com.intellij.ide.ui.UISettingsListener
+import com.intellij.util.Alarm
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
 import com.roocode.jetbrains.core.PluginContext
@@ -30,6 +32,8 @@ import com.roocode.jetbrains.theme.ThemeManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import org.cef.CefSettings
 import org.cef.browser.CefBrowser
@@ -238,7 +242,7 @@ class WebViewManager(var project: Project) : Disposable, ThemeChangeListener {
             // Get location info from extension and set resource root directory
             try {
                 @Suppress("UNCHECKED_CAST")
-                val location = extension?.get("location") as? Map<String, Any?>
+                val location = extension.get("location") as? Map<String, Any?>
                 val fsPath = location?.get("fsPath") as? String
 
                 if (fsPath != null) {
@@ -271,6 +275,7 @@ class WebViewManager(var project: Project) : Disposable, ThemeChangeListener {
             val viewId = UUID.randomUUID().toString()
 
             val title = data.options["title"] as? String ?: data.viewType
+            @Suppress("UNCHECKED_CAST")
             val state = data.options["state"] as? Map<String, Any?> ?: emptyMap()
 
             // CRITICAL: This is where JBCefBrowser is created. Must be serialized.
@@ -503,6 +508,9 @@ class WebViewInstance(
     // JavaScript query handler for communication with webview
     var jsQuery: JBCefJSQuery? = null
 
+    @Volatile
+    var latestLoadedUrl: String? = null
+
     // JSON serialization
     private val gson = Gson()
 
@@ -513,10 +521,14 @@ class WebViewInstance(
 
     private var currentThemeConfig: JsonObject? = null
 
+    // Plugin-managed cache for target zoom level to prevent race conditions with JCEF async updates
+    private var appliedTargetZoomLevel: Double? = null
+
     // Callback for page load completion
     private var pageLoadCallback: (() -> Unit)? = null
     private val jsBridgeSetupRetries = AtomicInteger(0)
     private val scheduler = Executors.newSingleThreadScheduledExecutor()
+    private val zoomAlarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
 
     init {
         // Determine rendering mode based on environment and JVM properties
@@ -561,6 +573,16 @@ class WebViewInstance(
         
         // Enable resource loading interception
         enableResourceInterception(extension)
+
+        // Setup zoom debounce listener for IDE global scale changes [Trace: REQ-04]
+        project.messageBus.connect(this).subscribe(UISettingsListener.TOPIC, UISettingsListener {
+            zoomAlarm.cancelAllRequests()
+            zoomAlarm.addRequest({
+                if (!isDisposed && isPageLoaded) {
+                    syncZoomLevel()
+                }
+            }, 150)
+        })
     }
 
     /**
@@ -592,18 +614,51 @@ class WebViewInstance(
     }
 
     fun syncZoomLevel() {
-        // Get the current UI scale factor from the IDE
-        // We need to divide by sysScale to avoid double scaling, as CEF handles system DPI automatically in Windowed mode.
-        val scaleFactor = JBUI.pixScale(1.0f) / JBUIScale.sysScale()
+        if (isDisposed) return
 
-        // Convert the linear scale factor to CEF's logarithmic zoomLevel.
-        // The base is approximately 1.2, as used by Chromium.
-        val zoomLevel = Math.log(scaleFactor.toDouble()) / Math.log(1.2)
+        // [Optimization: Configuration-driven Consistency]
+        // 1. In OSR (Off-Screen Rendering) mode, Swing already handles scaling.
+        // Locking CEF zoomLevel to 0.0 prevents double scaling.
+        if (isOSR) {
+            if (appliedTargetZoomLevel != 0.0) {
+                logger.debug("OSR mode detected: Locking CEF zoomLevel to 0.0")
+                browser.cefBrowser.zoomLevel = 0.0
+                appliedTargetZoomLevel = 0.0
+            }
+            return
+        }
 
-        // Apply the zoom only if it has changed to avoid unnecessary updates
-        if (browser.cefBrowser.zoomLevel != zoomLevel) {
-            logger.info("Syncing IDE zoom. UI Scale: ${JBUI.pixScale(1.0f)}, Sys Scale: ${JBUIScale.sysScale()}, Final Factor: $scaleFactor, CEF ZoomLevel: $zoomLevel")
-            browser.cefBrowser.zoomLevel = zoomLevel
+        // 2. Core Defense: Never sync zoom during about:blank!
+        // Doing so pollutes Chromium's internal host-based zoom cache and causes flickering on reload.
+        if (browser.cefBrowser.url == "about:blank") {
+            logger.debug("Skipping syncZoomLevel because current URL is about:blank")
+            return
+        }
+
+        // 3. Obtain the stable intended scale from IDE settings (Fact of Truth)
+        // UISettings.ideScale (2023.2+) is much more stable than JBUI.pixScale during reloads.
+        val ideScale = try {
+            val settings = com.intellij.ide.ui.UISettings.instanceOrNull
+            // ideScale represents the user's manual scale adjustment (e.g., 1.0, 1.25).
+            // Windowed JCEF handles System DPI automatically, so we only compensate for ideScale.
+            settings?.ideScale ?: (JBUI.pixScale(1.0f) / JBUIScale.sysScale())
+        } catch (e: Throwable) {
+            JBUI.pixScale(1.0f) / JBUIScale.sysScale()
+        }
+
+        // 4. Apply safety clamping (0.5x to 3.0x)
+        val safeScaleFactor = ideScale.coerceIn(0.5f, 3.0f)
+
+        // 5. Convert to logarithmic scale
+        val targetZoomLevel = Math.log(safeScaleFactor.toDouble()) / Math.log(1.2)
+
+        // 6. Single Source of Truth Hysteresis Protection
+        // We use our own cache `appliedTargetZoomLevel` instead of `browser.cefBrowser.zoomLevel`
+        // because JCEF zoom updates are async and reading it might return stale/transitional states.
+        if (appliedTargetZoomLevel == null || Math.abs(appliedTargetZoomLevel!! - targetZoomLevel) > 0.01) {
+            logger.debug("Applying stable zoom. ideScale: $ideScale, targetLevel: $targetZoomLevel, previous: $appliedTargetZoomLevel")
+            browser.cefBrowser.zoomLevel = targetZoomLevel
+            appliedTargetZoomLevel = targetZoomLevel
         }
     }
 
@@ -612,7 +667,7 @@ class WebViewInstance(
             return
         }
         try {
-            var cssContent: String? = null
+            var cssContent: String
 
             // Get cssContent from themeConfig and save, then remove from object
             if (currentThemeConfig!!.has("cssContent")) {
@@ -864,7 +919,7 @@ class WebViewInstance(
          * @param message Message to send (JSON string)
          */
     fun postMessageToWebView(message: String) {
-        if (!isDisposed) {
+        if (!isDisposed && isPageLoaded && browser.cefBrowser.url != "about:blank") {
             // Send message to WebView via JavaScript function
             val script = """
                 if (window.receiveMessageFromPlugin) {
@@ -883,7 +938,7 @@ class WebViewInstance(
     fun enableResourceInterception(extension: Map<String, Any?>) {
         try {
             @Suppress("UNCHECKED_CAST")
-            val location = extension?.get("location") as? Map<String, Any?>
+            val location = extension.get("location") as? Map<String, Any?>
             val fsPath = location?.get("fsPath") as? String
 
             // Get JCEF client
@@ -900,6 +955,18 @@ class WebViewInstance(
                 ): Boolean {
                     // Filter out Mermaid LaTeX warnings that cannot be fixed in the dependency
                     if (message?.contains("LaTeX-incompatible input") == true) {
+                        return true
+                    }
+
+                    // Filter out noisy SourceMap preload warnings [Optimization: Reducing Log Noise]
+                    if (message?.contains("sourcemap") == true ||
+                        message?.contains("source-map") == true ||
+                        message?.contains(".map") == true) {
+                        return true
+                    }
+
+                    // Filter out bridge availability warnings on about:blank
+                    if (message?.contains("receiveMessageFromPlugin not available") == true && source == "about:blank") {
                         return true
                     }
 
@@ -940,6 +1007,13 @@ class WebViewInstance(
                 ) {
                     logger.debug("WebView finished loading: ${frame?.url}, status code: $httpStatusCode")
                     isPageLoaded = true
+
+                    // Capture latest URL automatically [Decision: Point 1]
+                    frame?.url?.let {
+                        if (it.startsWith("http://localhost") || it.startsWith("file://")) {
+                            latestLoadedUrl = it
+                        }
+                    }
 
                     // Inject CSS to force full height, fixing the shrinking issue on sleep/wake.
                     // Only needed for Windowed mode.
@@ -1058,12 +1132,44 @@ class WebViewInstance(
         }
     }
 
+    fun reload() {
+        UIUtil.invokeLaterIfNeeded {
+            if (isDisposed) return@invokeLaterIfNeeded
+
+            // 1. 彻底切断当前加载流
+            browser.cefBrowser.stopLoad()
+            isPageLoaded = false
+
+            // 2. 清除缩放缓存，强制在重新加载业务页面后再次同步缩放
+            // 这是为了防止 about:blank 污染 Chromium 内部的 Zoom 记忆
+            appliedTargetZoomLevel = null
+
+            // 3. 清理旧页面的悬挂协程请求，防止内存泄露 [Decision: Point 3]
+            coroutineScope.coroutineContext.cancelChildren()
+
+            // 4. 物理级硬重置：先加载空白页彻底清理上下文 [Decision: Point 2]
+            logger.debug("WebView performing hard reset via about:blank")
+            browser.loadURL("about:blank")
+
+            // 5. 异步延迟重载，确保 JCEF 基础循环已处理 blank 页面
+            scheduler.schedule({
+                UIUtil.invokeLaterIfNeeded(fun() {
+                    if (isDisposed) return
+                    val url = latestLoadedUrl ?: "http://localhost:12345/index.html"
+                    logger.debug("WebView reloading target URL: $url")
+                    browser.loadURL(url)
+                })
+            }, 50, TimeUnit.MILLISECONDS)
+        }
+    }
+
     /**
          * Load URL
          */
     fun loadUrl(url: String) {
         if (!isDisposed) {
             logger.debug("WebView loading URL: $url")
+            latestLoadedUrl = url
             browser.loadURL(url)
         }
     }
@@ -1103,6 +1209,7 @@ class WebViewInstance(
 
     override fun dispose() {
         if (!isDisposed) {
+            coroutineScope.cancel()
             scheduler.shutdownNow()
             browser.dispose()
             isDisposed = true

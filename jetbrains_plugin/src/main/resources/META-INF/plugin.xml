@@ -254,6 +254,14 @@ https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
             <override-text place="GoToAction" text="History" />
         </action>
 
+        <action id="RooCode.refreshWebview"
+                icon="AllIcons.Actions.Refresh"
+                class="com.roocode.jetbrains.actions.RefreshWebviewAction"
+                text="Refresh Webview"
+                description="Reload the side panel webview">
+            <override-text place="GoToAction" text="Refresh Webview" />
+        </action>
+
         <action id="RooCode.marketplaceButtonClicked"
             icon="AllIcons.Toolwindows.ToolWindowComponents"
             class="com.roocode.jetbrains.actions.MarketplaceButtonClickAction"
@@ -284,6 +292,7 @@ https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
             <!-- <reference ref="RooCode.mcpButtonClicked" />-->
             <reference ref="RooCode.marketplaceButtonClicked" />
             <reference ref="RooCode.historyButtonClicked" />
+            <reference ref="RooCode.refreshWebview" />
             <reference ref="RooCode.cloudButtonClicked" />
             <reference ref="RooCode.settingsButtonClicked" />
         </group>

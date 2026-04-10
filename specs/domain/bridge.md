@@ -15,6 +15,10 @@
 ### [APPEND:2026-03-17] [[fr001]] Delta
 - **[Project Bridge]**: 跨项目/Worktree 的打开操作应统一通过 `ProjectUtil` 桥接并支持 `forceNewWindow` 映射。 (Ref: fr001)
 
+### [APPEND:2026-04-10] [[fr002]] Delta
+- **[WebView Resilience]**: JCEF WebView 必须具备物理刷新能力。刷新过程必须遵循“先销毁(JSQuery/Task)、后重载(URL)、再注入(Bridge/Theme)”的原子顺序，以防止内存泄露与状态丢失。
+- **[Zoom Stability]**: 所有的 Webview 缩放事件必须通过 `Alarm` 防抖（建议 150ms），且其核心设置逻辑必须脱离 UI 主线程（EDT）异步执行。 (Ref: fr002)
+
 <details><summary>🤖 AI Assistant Guide</summary>
 
 ## 领域规格专家指南
