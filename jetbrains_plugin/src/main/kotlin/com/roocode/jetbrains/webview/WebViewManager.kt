@@ -998,6 +998,13 @@ class WebViewInstance(
                 ) {
                     logger.debug("WebView started loading: ${frame?.url}, transition type: $transitionType")
                     isPageLoaded = false
+
+                    // [Optimization: Early Zoom Sync]
+                    // Applying zoom at the start of loading ensures that Chromium calculates the layout
+                    // with the correct scale factor from the first paint, avoiding UI jump/snap.
+                    if (!isOSR) {
+                        syncZoomLevel()
+                    }
                 }
 
                 override fun onLoadEnd(
@@ -1119,7 +1126,8 @@ class WebViewInstance(
                     if (fsPath != null && request?.url?.contains("localhost")==true) {
                         // Set resource root directory
                         val path = Paths.get(fsPath)
-                        return LocalResHandler(path.pathString,request)
+                        // Pass current theme config to enable static CSS injection in LocalResHandler
+                        return LocalResHandler(path.pathString, request, currentThemeConfig)
                     }else{
                         return null
                     }
@@ -1136,22 +1144,22 @@ class WebViewInstance(
         UIUtil.invokeLaterIfNeeded {
             if (isDisposed) return@invokeLaterIfNeeded
 
-            // 1. 彻底切断当前加载流
+            // 1. Completely terminate the current loading stream
             browser.cefBrowser.stopLoad()
             isPageLoaded = false
 
-            // 2. 清除缩放缓存，强制在重新加载业务页面后再次同步缩放
-            // 这是为了防止 about:blank 污染 Chromium 内部的 Zoom 记忆
+            // 2. Clear the zoom cache to force a new zoom synchronization after reloading the application page.
+            // This prevents "about:blank" from polluting Chromium's internal host-based zoom memory.
             appliedTargetZoomLevel = null
 
-            // 3. 清理旧页面的悬挂协程请求，防止内存泄露 [Decision: Point 3]
+            // 3. Cancel any pending coroutine requests from the old page to prevent memory leaks [Decision: Point 3]
             coroutineScope.coroutineContext.cancelChildren()
 
-            // 4. 物理级硬重置：先加载空白页彻底清理上下文 [Decision: Point 2]
+            // 4. Physical hard reset: Load a blank page first to thoroughly clean up the execution context [Decision: Point 2]
             logger.debug("WebView performing hard reset via about:blank")
             browser.loadURL("about:blank")
 
-            // 5. 异步延迟重载，确保 JCEF 基础循环已处理 blank 页面
+            // 5. Asynchronous delayed reload ensures the JCEF event loop has processed the blank page
             scheduler.schedule({
                 UIUtil.invokeLaterIfNeeded(fun() {
                     if (isDisposed) return

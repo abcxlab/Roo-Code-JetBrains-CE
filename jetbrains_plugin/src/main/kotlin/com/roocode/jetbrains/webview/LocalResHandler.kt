@@ -4,6 +4,7 @@
 
 package com.roocode.jetbrains.webview
 
+import com.google.gson.JsonObject
 import com.intellij.openapi.diagnostic.Logger
 import io.ktor.http.*
 import org.cef.browser.CefBrowser
@@ -18,15 +19,15 @@ import org.cef.network.CefResponse
 import java.io.File
 
 
-class LocalResHandler(val resourcePath:String , val request: CefRequest?) : CefResourceRequestHandlerAdapter() {
+class LocalResHandler(val resourcePath: String, val request: CefRequest?, val themeConfig: JsonObject?) : CefResourceRequestHandlerAdapter() {
 
     override fun getResourceHandler(browser: CefBrowser?, frame: CefFrame?, request: CefRequest?): CefResourceHandler {
-        return LocalCefResHandle(resourcePath,request)
+        return LocalCefResHandle(resourcePath, request, themeConfig)
     }
 
 }
 
-class LocalCefResHandle(val resourceBasePath: String, val request: CefRequest?) : CefResourceHandler{
+class LocalCefResHandle(val resourceBasePath: String, val request: CefRequest?, val themeConfig: JsonObject?) : CefResourceHandler{
     private val logger = Logger.getInstance(LocalCefResHandle::class.java)
 
     private var file: File? = null
@@ -59,9 +60,35 @@ class LocalCefResHandle(val resourceBasePath: String, val request: CefRequest?) 
                         // Use a robust regex to match <link> tags with href pointing to map files, including source-map query params
                         val mapLinkRegex = Regex("""<link\s+[^>]*href=["'][^"']*(?:\.map(?=["'?])|\.sourcemap|\.map\.json|source-map=)[^"']*["'][^>]*>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
 
-                        val modifiedHtml = htmlContent.replace(mapLinkRegex, "")
+                        var modifiedHtml = htmlContent.replace(mapLinkRegex, "")
+
+                        // [Optimization: Static Theme Injection]
+                        // Inject theme CSS variables directly into the HTML to prevent FOUC (Flash of Unstyled Content)
+                        // and font-size jittering during the initial paint.
+                        themeConfig?.get("cssContent")?.asString?.let { cssContent ->
+                            if (cssContent.isNotEmpty()) {
+                                // Extract CSS variables (lines starting with --)
+                                val cssVariables = cssContent.split('\n')
+                                    .map { it.trim() }
+                                    .filter { it.startsWith("--") }
+                                    .joinToString("\n")
+
+                                if (cssVariables.isNotEmpty()) {
+                                    val styleTag = "\n<style id=\"roo-code-theme-static\">:root {\n$cssVariables\n}</style>\n"
+                                    modifiedHtml = if (modifiedHtml.contains("<head>")) {
+                                        modifiedHtml.replace("<head>", "<head>$styleTag")
+                                    } else if (modifiedHtml.contains("<html>")) {
+                                        modifiedHtml.replace("<html>", "<html><head>$styleTag</head>")
+                                    } else {
+                                        "$styleTag$modifiedHtml"
+                                    }
+                                    logger.debug("Injected static theme CSS variables into HTML: $filePath")
+                                }
+                            }
+                        }
+
                         content = modifiedHtml.toByteArray(Charsets.UTF_8)
-                        logger.debug("Removed links for sourcemap files in HTML: $filePath")
+                        logger.debug("Processed HTML content with static theme injection for: $filePath")
                     }
 
                     // If it's a JS file, remove source map comments to avoid performance warnings
