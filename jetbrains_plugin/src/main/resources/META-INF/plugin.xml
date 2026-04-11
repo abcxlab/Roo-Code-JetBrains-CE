@@ -63,13 +63,21 @@ https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 
     <!-- Change notes for the plugin -->
     <change-notes><![CDATA[
+        <h3>Version 3.52.0.2</h3>
+          <ul>
+              <li>Opt: Optimized WebView rendering performance with static CSS injection and early zoom synchronization.</li>
+              <li>Fix: Resolved a critical regression where Debug configuration could not be enabled or saved.</li>
+              <li>Fix: Hardened the RPC protocol and synchronization mechanism for improved stability.</li>
+              <li>Opt: Enhanced plugin initialization sequence and error handling.</li>
+          </ul>
+  
         <h3>Version 3.52.0.1</h3>
-        <ul>
-            <li>Feat: Add refresh button to JCEF WebView for self-recovery when UI freezes or becomes unresponsive</li>
-            <li>Fix: Resolve font size flickering issue during WebView refresh by introducing zoom level cache and blocking sync on blank pages</li>
-            <li>Feat: Add Node.js environment check with clear error messages if Node.js v18+ is not found</li>
-            <li>Upgrade: Upgrade roo-code to v3.52.0</li>
-        </ul>
+          <ul>
+              <li>Feat: Add refresh button to JCEF WebView for self-recovery when UI freezes or becomes unresponsive</li>
+              <li>Fix: Resolve font size flickering issue during WebView refresh by introducing zoom level cache and blocking sync on blank pages</li>
+              <li>Feat: Add Node.js environment check with clear error messages if Node.js v18+ is not found</li>
+              <li>Upgrade: Upgrade roo-code to v3.52.0</li>
+          </ul>
         <h3>Version 3.51.1.2</h3>
         <ul>
             <li>Feat: enable debug logging and add markdown preview command support</li>
