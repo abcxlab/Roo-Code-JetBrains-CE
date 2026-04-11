@@ -33,7 +33,10 @@ import com.roocode.jetbrains.webview.WebViewCreationCallback
 import com.roocode.jetbrains.webview.WebViewInstance
 import com.roocode.jetbrains.webview.WebViewManager
 import com.roocode.jetbrains.util.PluginConstants
+import com.roocode.jetbrains.util.NotificationUtil
 import com.roocode.jetbrains.util.RooCodeBundle
+import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.AnActionEvent
 import kotlinx.coroutines.*
 import java.awt.BorderLayout
 import java.awt.datatransfer.StringSelection
@@ -285,14 +288,48 @@ class RooToolWindowFactory : ToolWindowFactory, DumbAware {
 
             coroutineScope.launch {
                 try {
+                    // Start 30s timeout check for initialization
+                    val timeoutJob = launch {
+                        delay(30000)
+                        if (myWebView == null || !myWebView!!.isPageLoaded()) {
+                            logger.warn("Initialization timeout (30s) reached, showing rescue notification")
+                            val retryAction = object : AnAction(RooCodeBundle.message("notification.init.timeout.retry")) {
+                                override fun actionPerformed(e: AnActionEvent) {
+                                    // Expire the notification bubble immediately
+                                    com.intellij.notification.Notification.get(e).expire()
+                                    
+                                    logger.debug("User triggered manual service restart via timeout notification")
+                                    NotificationUtil.showInfo(RooCodeBundle.message("notification.restarting.service"), "", project)
+                                    pluginService.dispose()
+                                    pluginService.initialize(project)
+                                }
+                            }
+                            
+                            NotificationUtil.showNotificationWithActions(
+                                RooCodeBundle.message("notification.init.timeout.title"),
+                                RooCodeBundle.message("notification.init.timeout.content"),
+                                NotificationType.WARNING,
+                                project,
+                                listOf(retryAction)
+                            )
+                        }
+                    }
+
                     val success = withContext(Dispatchers.IO) {
                         pluginService.waitForInitialization()
                     }
+                    
                     if (!success) {
+                        timeoutJob.cancel()
                         ApplicationManager.getApplication().invokeLater {
                             placeholderLabel.text = createLoadingText(RooCodeBundle.message("toolwindow.init.failed.node.missing"))
                             placeholderLabel.icon = AllIcons.General.Error
                             logger.warn("Plugin initialization failed, UI updated to show error state")
+                        }
+                    } else {
+                        // If successfully initialized and page is already loaded, cancel timeout job
+                        if (myWebView?.isPageLoaded() == true) {
+                            timeoutJob.cancel()
                         }
                     }
                 } catch (e: Exception) {

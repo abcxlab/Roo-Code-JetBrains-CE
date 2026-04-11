@@ -125,7 +125,9 @@ interface MainThreadConfigurationShape : Disposable {
  */
 class MainThreadConfiguration : MainThreadConfigurationShape {
     private val logger = Logger.getInstance(MainThreadConfiguration::class.java)
-    
+    @Volatile
+    private var lastNotifiedDebugMode: Boolean? = null
+
     /**
      * Updates a configuration option in the specified target scope.
      * Handles the conversion of parameters and delegates to the appropriate
@@ -142,10 +144,9 @@ class MainThreadConfiguration : MainThreadConfigurationShape {
         val configTarget = ConfigurationTarget.fromValue(target)
         val configOverrides = convertToConfigurationOverrides(overrides)
         
-        // Log the configuration update for debugging purposes
-        logger.debug("Update configuration option: target=${configTarget?.let { ConfigurationTarget.toString(it) }}, key=$key, value=$value, " +
-                   "overrideIdentifier=${configOverrides?.overrideIdentifier}, resource=${configOverrides?.resource}, " +
-                   "scopeToLanguage=$scopeToLanguage")
+        // Log the configuration update for informational purposes
+        logger.info("MainThreadConfiguration update: target=${configTarget?.let { ConfigurationTarget.toString(it) }}, key=$key, value=$value, " +
+                   "overrideIdentifier=${configOverrides?.overrideIdentifier}, resource=${configOverrides?.resource}")
         
         // Build the complete configuration key including overrides and language scoping
         val fullKey = buildConfigurationKey(key, configOverrides, scopeToLanguage)
@@ -174,8 +175,16 @@ class MainThreadConfiguration : MainThreadConfigurationShape {
                 storeValue(properties, userPrefixedKey, value)
                 
                 // Notify extension host of configuration changes, critical for settings like "debug"
+                // Only notify if the debug mode has actually changed to prevent update storms
                 if (key == "debug" || key == "roo-cline.debug") {
-                    notifyConfigurationChanged()
+                    val currentMode = properties.getBoolean("roo-cline.debug", false) ||
+                                     properties.getBoolean("user.debug", false) ||
+                                     properties.getBoolean("user.roo-cline.debug", false)
+                    
+                    if (currentMode != lastNotifiedDebugMode) {
+                        lastNotifiedDebugMode = currentMode
+                        notifyConfigurationChanged()
+                    }
                 }
             }
             else -> {
@@ -375,36 +384,56 @@ class MainThreadConfiguration : MainThreadConfigurationShape {
             val proxy = protocol.getProxy(ServiceProxyRegistry.ExtHostContext.ExtHostConfiguration)
             // Read persisted user settings for configuration initialization
             val properties = com.intellij.ide.util.PropertiesComponent.getInstance()
-            val isDebugMode = properties.getBoolean("user.debug", false) || properties.getBoolean("user.roo-cline.debug", false)
+            // Support multiple possible keys used during development to ensure migration
+            val isDebugMode = properties.getBoolean("roo-cline.debug", false) ||
+                             properties.getBoolean("user.debug", false) ||
+                             properties.getBoolean("user.roo-cline.debug", false)
             
-            // Create user configuration model with persisted settings
             val userContents = mapOf(
-                "roo-cline" to mapOf("debug" to isDebugMode),
-                "debug" to isDebugMode
+                "roo-cline" to mapOf("debug" to isDebugMode)
             )
             
-            val userConfigModel = mapOf(
+            val configurationData = mapOf(
                 "contents" to userContents,
-                "keys" to listOf("roo-cline.debug", "debug"),
+                "keys" to listOf("roo-cline.debug"),
                 "overrides" to emptyList<String>()
             )
 
-            // Create full configuration model
-            val emptyMap = mapOf("contents" to emptyMap<String, Any>(), "keys" to emptyList<String>(), "overrides" to emptyList<String>())
+            // To prevent TypeError while preventing the overwriting of existing configuration (like .vscode settings):
+            // We MUST provide a non-null object for each scope to avoid the JS 'reading contents of undefined' error,
+            // but we make sure those scopes are NOT marked as 'isComplete' or we ensure they don't contain
+            // the 'contents' key if the underlying parser supports partial merging.
+            //
+            // Given the ExtHost's parseConfigurationModel logic, the safest proxy for "no change"
+            // is to not include the scope in fullConfigModel at all, but the previous attempt crashed.
+            // Therefore, we re-use the baseEmptyScope structure but only for non-critical paths.
+            
+            val baseEmptyScope = mapOf(
+                "contents" to emptyMap<String, Any>(),
+                "keys" to emptyList<String>(),
+                "overrides" to emptyList<String>()
+            )
+
+            // We only provide the values we definitely want to overwrite (userLocal).
+            // For workspace, if we send an empty map, it WILL wipe settings.
+            // The compromise: we send the current debug state in ALL potentially active scopes
+            // so that at least that one setting is consistent across the IDE.
             val fullConfigModel = mapOf(
-                "defaults" to emptyMap,
-                "policy" to emptyMap,
-                "application" to emptyMap,
-                "userLocal" to userConfigModel,
-                "userRemote" to emptyMap,
-                "workspace" to emptyMap,
+                "defaults" to baseEmptyScope,
+                "policy" to baseEmptyScope,
+                "application" to baseEmptyScope,
+                "userLocal" to configurationData,
+                "userRemote" to baseEmptyScope,
+                "workspace" to configurationData, // Bind debug state to workspace too to prevent it being masked by empty workspace
                 "folders" to emptyList<Any>(),
                 "configurationScopes" to emptyList<Any>()
             )
 
-            // Use acceptConfigurationChanged instead of updateConfiguration
-            proxy.acceptConfigurationChanged(fullConfigModel, emptyMap<String, Any?>())
-            logger.debug("Notified extension host of configuration change: debug=$isDebugMode")
+            val changeModel = configurationData
+            
+            proxy.acceptConfigurationChanged(fullConfigModel, changeModel)
+            lastNotifiedDebugMode = isDebugMode
+            logger.info("Notified extension host of configuration change [acceptConfigurationChanged]: isDebugMode=$isDebugMode")
         } catch (e: Exception) {
             logger.error("Failed to notify configuration change to extension host", e)
         }

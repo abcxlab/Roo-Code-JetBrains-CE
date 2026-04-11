@@ -4,8 +4,10 @@
 
 package com.roocode.jetbrains.util
 
+import com.intellij.notification.Notification
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
 
@@ -45,6 +47,29 @@ object NotificationUtil {
      */
     fun showInfo(title: String, content: String, project: Project? = null) {
         showNotification(title, content, NotificationType.INFORMATION, project)
+    }
+
+    /**
+     * Show notification with actions
+     * @param title Notification title
+     * @param content Notification content
+     * @param type Notification type
+     * @param project Project instance
+     * @param actions List of actions to add to the notification
+     */
+    fun showNotificationWithActions(
+        title: String,
+        content: String,
+        type: NotificationType,
+        project: Project?,
+        actions: List<AnAction>
+    ) {
+        val targetProject = project ?: ProjectManager.getInstance().defaultProject
+        val notificationGroup = NotificationGroupManager.getInstance().getNotificationGroup(NOTIFICATION_GROUP_ID)
+        
+        val notification = notificationGroup?.createNotification(title, content, type)
+        actions.forEach { notification?.addAction(it) }
+        notification?.notify(targetProject)
     }
     
     /**

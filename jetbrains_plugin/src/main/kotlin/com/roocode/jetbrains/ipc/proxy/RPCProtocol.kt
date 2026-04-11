@@ -200,6 +200,7 @@ class RPCProtocol(
     /**
      * Triggered before sending a request
      */
+    @Synchronized
     private fun onWillSendRequest(req: Int) {
         if (unacknowledgedCount <= 0) {
            // This is the first request we've sent in a while
@@ -224,6 +225,7 @@ class RPCProtocol(
     /**
      * Triggered when an acknowledge response is received
      */
+    @Synchronized
     private fun onDidReceiveAcknowledge(req: Int) {
        // The next possible unresponsive time is now + increment
        unresponsiveTime = System.currentTimeMillis() + UNRESPONSIVE_TIME

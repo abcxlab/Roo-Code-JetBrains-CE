@@ -123,7 +123,6 @@ https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
         <h3>Version 3.35.4</h3>
         <ul>
             <li>Upgrade roo-code to 3.35.4</li>
-            <li>Fix: fix jcef timing issue at initialization</li>
         </ul>
         <h3>Version 3.34.6</h3>
         <ul>

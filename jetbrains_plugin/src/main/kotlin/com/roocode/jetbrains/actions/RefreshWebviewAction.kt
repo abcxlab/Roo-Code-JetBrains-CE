@@ -4,6 +4,9 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.DumbAware
+import com.roocode.jetbrains.plugin.RooCoderPlugin
+import com.roocode.jetbrains.util.NotificationUtil
+import com.roocode.jetbrains.util.RooCodeBundle
 import com.roocode.jetbrains.webview.WebViewManager
 
 /**
@@ -30,9 +33,26 @@ class RefreshWebviewAction : AnAction(), DumbAware {
         val latestWebView = webViewManager.getLatestWebView()
         
         if (latestWebView != null) {
+            logger.debug("Refreshing active WebView instance")
             latestWebView.reload()
         } else {
-            logger.warn("No active WebView instance found to refresh")
+            logger.warn("No active WebView instance found to refresh. Triggering full plugin service restart for self-rescue.")
+            
+            NotificationUtil.showInfo(
+                RooCodeBundle.message("notification.restarting.service"),
+                "",
+                project
+            )
+            
+            val pluginService = RooCoderPlugin.getInstance(project)
+            try {
+                pluginService.dispose()
+                logger.debug("Plugin service disposed successfully for restart")
+                pluginService.initialize(project)
+                logger.debug("Plugin service initialization re-triggered")
+            } catch (ex: Exception) {
+                logger.error("Failed to restart plugin service during self-rescue", ex)
+            }
         }
     }
     
@@ -43,7 +63,7 @@ class RefreshWebviewAction : AnAction(), DumbAware {
             return
         }
         
-        val webViewManager = project.getService(WebViewManager::class.java)
-        e.presentation.isEnabledAndVisible = webViewManager.getLatestWebView() != null
+        // Show the button as long as the project is open, allowing self-rescue during initialization
+        e.presentation.isEnabledAndVisible = true
     }
 }
